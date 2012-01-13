@@ -27,8 +27,7 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target) {
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "setBaudrate", SetBaudrate);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "write", Write);
 
-    //TODO Make this A class method
-    NODE_SET_PROTOTYPE_METHOD(constructor_template, "findAll", FindAll);
+    NODE_SET_METHOD(constructor_template, "findAll", FindAll);
     
     target->Set(String::NewSymbol("Ftdi"), constructor_template->GetFunction());
 }
@@ -110,7 +109,6 @@ Handle<Value> NodeFtdi::Write(const Arguments& args) {
 
 Handle<Value> NodeFtdi::Close(const Arguments& args) {
     int ret = ftdi_usb_close(&ftdic);
-
     if (ret < 0) {
         return NodeFtdi::ThrowLastError("Failed to close device: ");
     }

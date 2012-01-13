@@ -19,6 +19,7 @@ class NodeFtdi : ObjectWrap {
         static Handle<Value> New(const Arguments& args);
         static Handle<Value> Open(const Arguments& args);
         static Handle<Value> SetBaudrate(const Arguments& args);
+        static Handle<Value> Write(const Arguments& args);
         static Handle<Value> Close(const Arguments& args);
 };
 

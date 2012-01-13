@@ -1,7 +1,10 @@
+#include <stdlib.h>
+#include <iostream>
 #include <v8.h>
 #include <node.h>
 #include "ftdi.h"
 
+using namespace std;
 using namespace v8;
 using namespace node;
 using namespace node_ftdi;
@@ -19,6 +22,7 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target) {
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "open", Open);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "close", Close);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "setBaudrate", SetBaudrate);
+    NODE_SET_PROTOTYPE_METHOD(constructor_template, "write", Write);
     
     target->Set(String::NewSymbol("Ftdi"), constructor_template->GetFunction());
 }
@@ -58,6 +62,29 @@ Handle<Value> NodeFtdi::SetBaudrate(const Arguments& args) {
     }
 
     return args.This();
+}
+
+Handle<Value> NodeFtdi::Write(const Arguments& args) {
+    if (args.Length() < 1 || !args[0]->IsString()) {
+        return ThrowException(Exception::TypeError(String::New("Ftdi.write() expects a character")));
+    }
+
+    std::string str(*String::Utf8Value(args[0]));
+    
+    if(str.length() > 1) {
+        char message [50];
+        sprintf(message, "Ftdi.write() expects one character, got %d", (int) str.length());
+        return ThrowException(Exception::TypeError(String::New(message)));
+    }
+
+    int ret = ftdi_write_data(&ftdic, (unsigned char*) str.c_str(), 1);
+
+    if(ret < 0) {
+        // TODO: Use error to have a more compelling error message
+        return ThrowException(Exception::Error(String::New("Unable to set write")));
+    }
+
+    return Boolean::New(true);
 }
 
 Handle<Value> NodeFtdi::Close(const Arguments& args) {

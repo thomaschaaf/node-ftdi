@@ -1,20 +1,7 @@
 CC = g++
-FLAGS = -lftdi -lusb
 
-FTDI_CC = build/ftdi.o
+device.o:
+	$(CC) -g -Wall -I/usr/local/lib  -I/usr/local/include/node -c src/device.cc
 
-LIB_DIR = lib
-BUILD_DIR = build
-
-
-build_dir:
-	mkdir -p $(BUILD_DIR)
-
-ftdi.o: build_dir
-	$(CC) $(FLAGS) $(LIB_DIR)/ftdi.cpp -shared -o $(FTDI_CC)
-
-find_all: ftdi.o
-	$(CC) $(FLAGS) src/find_all.cc $(FTDI_CC) -I $(LIB_DIR) -o find_all
-
-clean:
-	@rm -rf find_all $(BUILD_DIR)
+device.o:
+	$(CC) -g -Wall -I/usr/local/lib  -I/usr/local/include/node -c src/device.cc

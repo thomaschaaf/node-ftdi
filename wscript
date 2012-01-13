@@ -4,8 +4,8 @@
 blddir = 'build'
 VERSION = '0.0.1'
 
-src_files = ['src/hello.cc']
-target = 'hello_node'
+src_files = ['src/ftdi.cc']
+target = 'ftdi'
 
 
 def set_options(opt):
@@ -21,6 +21,10 @@ def configure(conf):
     # See {prefix}/lib/node/wafadmin/Tools/node_addon.py
     conf.check_tool('node_addon')
 
+    conf.env.append_value("LIBPATH_FTDI", "/usr/local/lib")
+    conf.env.append_value("STATICLIB_FTDI",["ftdi"])
+    conf.env.append_value("CPPPATH_FTDI", "/usr/local/include/")
+
 
 def build(bld):
     """
@@ -32,4 +36,5 @@ def build(bld):
     """
     obj = bld.new_task_gen('cxx', 'shlib', 'node_addon')
     obj.target = target
+    obj.uselib = ["FTDI"]
     obj.source = src_files

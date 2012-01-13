@@ -1,2 +1,4 @@
 build
 find_all
+.lock-wscript
+*.o

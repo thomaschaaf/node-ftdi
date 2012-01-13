@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <iostream>
+#include <sstream>
 #include <v8.h>
 #include <node.h>
 #include "ftdi.h"
@@ -48,10 +49,16 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
     HandleScope scope;
 
     if(!args[0]->IsUndefined()) {
+        if(!args[0]->IsNumber()) {
+            return ThrowTypeError("new Ftdi([vid[, pid]]) only takes integers as parameters");
+        }
         vid = args[0]->Int32Value();
     }
 
     if(!args[1]->IsUndefined()) {
+        if(!args[1]->IsNumber()) {
+            return ThrowTypeError("new Ftdi([vid[, pid]]) only takes integers as parameters");
+        }
         pid = args[1]->Int32Value();
     }
 
@@ -63,7 +70,25 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
 
 // TODO: Open could also be serial based
 Handle<Value> NodeFtdi::Open(const Arguments& args) {
-    int ret = ftdi_usb_open(&ftdic, vid, pid);
+    int ret;
+
+    if(!args[0]->IsUndefined()) {
+        if(args[0]->IsString() || args[0]->IsNumber()) {
+            if(args[0]->IsString()) {
+                std::stringstream ss;
+                std::string serial(*String::Utf8Value(args[0]));
+                ss << "s:" << vid << ":" << pid << ":" << serial;
+                ret = ftdi_usb_open_string(&ftdic, ss.str().c_str());
+            }
+            if(args[0]->IsNumber()) {
+                ret = ftdi_usb_open_desc_index(&ftdic, vid, pid, NULL, NULL, args[0]->Int32Value());
+            }
+        } else {
+            return ThrowTypeError("Ftdi.open() excepts an optionnal string or an integer as first parameter");
+        }
+    } else {
+        ret = ftdi_usb_open(&ftdic, vid, pid);
+    }
 
     if(ret < 0) {
         return NodeFtdi::ThrowLastError("Unable to open device: ");

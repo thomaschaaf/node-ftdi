@@ -1,4 +1,3 @@
-boost 1.48.0
 libftdi: http://www.intra2net.com/en/developer/libftdi/download.php
 libusb: http://sourceforge.net/projects/libusb/files/libusb-1.0/libusb-1.0.8/
 libusb-compat: http://sourceforge.net/projects/libusb/files/libusb-compat-0.1/libusb-compat-0.1.3/

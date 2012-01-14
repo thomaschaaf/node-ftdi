@@ -137,7 +137,7 @@ Handle<Value> NodeFtdi::Write(const Arguments& args) {
         return NodeFtdi::ThrowLastError("Unable to write to device: ");
     }
 
-    return Boolean::New(true);
+    return Number::New(ret);
 }
 
 Handle<Value> NodeFtdi::Close(const Arguments& args) {

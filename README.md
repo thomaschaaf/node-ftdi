@@ -1,13 +1,17 @@
 
 # Constructor
 
-new Ftdi([vid[, pid]])
+new Ftdi({
+    'vendorID': 0x0403,
+    'productID': 0x6001,
+    'description': 'FT232R USB UART'
+    'serial': 'A700ethE'
+    'index': 0
+});
 
 # Instance methods
 
 ftdi.open()
-ftdi.open(serial)
-ftdi.open(index)
 
 ftdi.setBaudrate(int)
 

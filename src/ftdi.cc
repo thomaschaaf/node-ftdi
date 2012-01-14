@@ -10,13 +10,29 @@ using namespace v8;
 using namespace node;
 using namespace node_ftdi;
 
-int vid = 0x0403;
-int pid = 0x6001;
+struct params p;
 struct ftdi_context ftdic;
-
 Persistent<FunctionTemplate> NodeFtdi::constructor_template;
 
-// This is our bootstrap function, where we define what the module exposes
+const char* ToCString(Local<String> val) {
+    return *String::Utf8Value(val);
+}
+
+int ToInt(Local<Number> num) {
+    return num->Uint32Value();
+}
+
+Handle<Value> NodeFtdi::ThrowTypeError(std::string message) {
+    return ThrowException(Exception::TypeError(String::New(message.c_str())));
+}
+
+Handle<Value> NodeFtdi::ThrowLastError(std::string message) {
+    Local<String> msg = String::New(message.c_str());
+    Local<String> str = String::New(ftdi_get_error_string(&ftdic));
+
+    return ThrowException(Exception::Error(String::Concat(msg, str)));
+}
+
 void NodeFtdi::Initialize(v8::Handle<v8::Object> target) {
     Local<FunctionTemplate> t = FunctionTemplate::New(New);
     constructor_template = Persistent<FunctionTemplate>::New(t);
@@ -33,33 +49,38 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target) {
     target->Set(String::NewSymbol("Ftdi"), constructor_template->GetFunction());
 }
 
-Handle<Value> NodeFtdi::ThrowTypeError(std::string message) {
-    return ThrowException(Exception::TypeError(String::New(message.c_str())));
-}
-
-Handle<Value> NodeFtdi::ThrowLastError(std::string message) {
-    Local<String> msg = String::New(message.c_str());
-    Local<String> str = String::New(ftdi_get_error_string(&ftdic));
-
-    return ThrowException(Exception::Error(String::Concat(msg, str)));
-}
-
 // new NodeFtdi(vid, pid);
 Handle<Value> NodeFtdi::New(const Arguments& args) {
     HandleScope scope;
+    Local<String> vid = String::New("vid");
+    Local<String> pid = String::New("pid");
+    Local<String> description = String::New("description");
+    Local<String> serial = String::New("serial");
+    Local<String> index = String::New("index");
 
-    if(!args[0]->IsUndefined()) {
-        if(!args[0]->IsNumber()) {
-            return ThrowTypeError("new Ftdi([vid[, pid]]) only takes integers as parameters");
-        }
-        vid = args[0]->Int32Value();
-    }
+    p.vid = 0x0403;
+    p.pid = 0x6001;
+    p.description = NULL;
+    p.serial = NULL;
+    p.index = 0;
 
-    if(!args[1]->IsUndefined()) {
-        if(!args[1]->IsNumber()) {
-            return ThrowTypeError("new Ftdi([vid[, pid]]) only takes integers as parameters");
+    if(args[0]->IsObject()) {
+        Local<Object> obj = args[0]->ToObject();
+        if(obj->Has(vid)) {
+            p.vid = ToInt(obj->Get(vid)->ToNumber());
         }
-        pid = args[1]->Int32Value();
+        if(obj->Has(pid)) {
+            p.pid = ToInt(obj->Get(pid)->ToNumber());
+        }
+        if(obj->Has(description)) {
+            p.description = ToCString(obj->Get(description)->ToString());
+        }
+        if(obj->Has(serial)) {
+            p.serial = ToCString(obj->Get(serial)->ToString());
+        }
+        if(obj->Has(index)) {
+            p.index = (unsigned int) ToInt(obj->Get(index)->ToNumber());
+        }
     }
 
     if (ftdi_init(&ftdic) < 0) {
@@ -68,27 +89,14 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
     return scope.Close(args.This());
 }
 
-// TODO: Open could also be serial based
 Handle<Value> NodeFtdi::Open(const Arguments& args) {
-    int ret;
-
-    if(!args[0]->IsUndefined()) {
-        if(args[0]->IsString() || args[0]->IsNumber()) {
-            if(args[0]->IsString()) {
-                std::stringstream ss;
-                std::string serial(*String::Utf8Value(args[0]));
-                ss << "s:" << vid << ":" << pid << ":" << serial;
-                ret = ftdi_usb_open_string(&ftdic, ss.str().c_str());
-            }
-            if(args[0]->IsNumber()) {
-                ret = ftdi_usb_open_desc_index(&ftdic, vid, pid, NULL, NULL, args[0]->Int32Value());
-            }
-        } else {
-            return ThrowTypeError("Ftdi.open() excepts an optionnal string or an integer as first parameter");
-        }
-    } else {
-        ret = ftdi_usb_open(&ftdic, vid, pid);
-    }
+    int ret = ftdi_usb_open_desc_index(
+        &ftdic,
+        p.vid,
+        p.pid,
+        p.description,
+        p.serial,
+        p.index);
 
     if(ret < 0) {
         return NodeFtdi::ThrowLastError("Unable to open device: ");
@@ -148,7 +156,8 @@ Handle<Value> NodeFtdi::FindAll(const Arguments& args) {
     struct ftdi_device_list *devlist, *curdev;
     char manufacturer[128], description[128], serial[128];
 
-    //TODO Parametize vid and pid
+    int vid = 0x0403;
+    int pid = 0x6001;
     if ((count = ftdi_usb_find_all(&ftdic, &devlist, vid, pid)) < 0) {
         return NodeFtdi::ThrowLastError("Unable to list devices: ");
     }

@@ -7,6 +7,14 @@ using namespace node;
 
 namespace node_ftdi {
 
+struct params {
+    int vid;
+    int pid;
+    const char* description;
+    const char* serial;
+    unsigned int index;
+};
+
 class NodeFtdi : ObjectWrap {
     public:
         static void Initialize(Handle<Object> target);

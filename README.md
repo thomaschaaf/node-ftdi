@@ -34,4 +34,4 @@ Note: Somehow description makes open() fail
 
 ## Class methods
 
-`Array` **Ftdi.findAll()**
+`Array` **Ftdi.findAll([vid [,pid]])**

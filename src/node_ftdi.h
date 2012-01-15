@@ -6,7 +6,7 @@ using namespace v8;
 using namespace node;
 
 #define FTDI_VID    0x0403
-#define FTDI_PID    0x6010
+#define FTDI_PID    0x6001
 
 namespace node_ftdi {
 

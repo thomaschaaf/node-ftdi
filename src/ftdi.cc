@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 
+// TODO: Rename this to node_ftdi.h
 #include "ftdi.h"
 
 using namespace std;
@@ -13,6 +14,7 @@ struct params p;
 struct ftdi_context ftdic;
 Persistent<FunctionTemplate> NodeFtdi::constructor_template;
 
+// TODO: Move this to .h
 int DEFAULT_VID = 0x0403;
 int DEFAULT_PID = 0x6001;
 
@@ -40,6 +42,7 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target) {
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "open", Open);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "close", Close);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "setBaudrate", SetBaudrate);
+    NODE_SET_PROTOTYPE_METHOD(constructor_template, "setLineProperty", SetLineProperty);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "write", Write);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "read", Read);
 
@@ -90,8 +93,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
 }
 
 Handle<Value> NodeFtdi::Open(const Arguments& args) {
-    int ret = ftdi_usb_open_desc_index(
-        &ftdic,
+    int ret = ftdi_usb_open_desc_index(&ftdic,
         p.vid,
         p.pid,
         p.description,
@@ -116,6 +118,28 @@ Handle<Value> NodeFtdi::SetBaudrate(const Arguments& args) {
 
     if(ret < 0) {
         return NodeFtdi::ThrowLastError("Unable to set baudrate: ");
+    }
+
+    return args.This();
+}
+
+Handle<Value> NodeFtdi::SetLineProperty(const Arguments& args) {
+    //TODO: Add check that the device is open
+    if (args.Length() < 3 || !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber()) {
+        return NodeFtdi::ThrowTypeError("Ftdi.setLineProperty(bits, stopbits, parity) expects an 3 integers");
+    }
+
+    int bits = args[0]->Uint32Value();
+    int stopbits   = args[1]->Uint32Value();
+    int parity    = args[2]->Uint32Value();
+
+    int ret = ftdi_set_line_property(&ftdic,
+        ftdi_bits_type(bits),
+        ftdi_stopbits_type(stopbits),
+        ftdi_parity_type(parity));
+
+    if(ret < 0) {
+        return NodeFtdi::ThrowLastError("Unable to set line property: ");
     }
 
     return args.This();
@@ -149,6 +173,7 @@ Handle<Value> NodeFtdi::Read(const Arguments& args) {
 
 
 Handle<Value> NodeFtdi::Close(const Arguments& args) {
+    //TODO: Add check that the device is open
     int ret = ftdi_usb_close(&ftdic);
     if (ret < 0) {
         return NodeFtdi::ThrowLastError("Failed to close device: ");

@@ -27,6 +27,8 @@ Note: Somehow description makes open() fail
 
 `self` **ftdi.setBaudrate(int)**
 
+`self` **ftdi.setLineProperty(int, int, int)**
+
 `int` **ftdi.write(char)**
 
 `void` **ftdi.close()**

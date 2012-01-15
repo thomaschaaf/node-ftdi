@@ -28,6 +28,7 @@ class NodeFtdi : ObjectWrap {
         static Handle<Value> Open(const Arguments& args);
         static Handle<Value> SetBaudrate(const Arguments& args);
         static Handle<Value> Write(const Arguments& args);
+        static Handle<Value> Read(const Arguments& args);
         static Handle<Value> Close(const Arguments& args);
         static Handle<Value> FindAll(const Arguments& args);
 

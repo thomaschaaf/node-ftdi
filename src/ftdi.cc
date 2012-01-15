@@ -1,8 +1,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <sstream>
-#include <v8.h>
-#include <node.h>
+
 #include "ftdi.h"
 
 using namespace std;
@@ -42,6 +41,7 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target) {
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "close", Close);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "setBaudrate", SetBaudrate);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "write", Write);
+    NODE_SET_PROTOTYPE_METHOD(constructor_template, "read", Read);
 
     NODE_SET_METHOD(constructor_template, "findAll", FindAll);
     
@@ -124,21 +124,29 @@ Handle<Value> NodeFtdi::SetBaudrate(const Arguments& args) {
 Handle<Value> NodeFtdi::Write(const Arguments& args) {
     //TODO: Add check that the device is open
     if (args.Length() < 1 || !args[0]->IsString()) {
-        return NodeFtdi::ThrowTypeError("Ftdi.write() expects a String() which length == 1");
+        return NodeFtdi::ThrowTypeError("Ftdi.write() expects a string");
     }
 
     std::string str(*String::Utf8Value(args[0]));
-    if(str.length() > 1) {
-        return NodeFtdi::ThrowTypeError("Ftdi.write() excepts only one character");
-    }
 
-    int ret = ftdi_write_data(&ftdic, (unsigned char*) str.c_str(), 1);
+    int ret = ftdi_write_data(&ftdic, (unsigned char*) str.c_str(), str.size());
     if(ret < 0) {
         return NodeFtdi::ThrowLastError("Unable to write to device: ");
     }
 
     return Number::New(ret);
 }
+
+Handle<Value> NodeFtdi::Read(const Arguments& args) {
+    //TODO: Add check that the device is open
+    uint8_t buf[1];
+    int ret = ftdi_read_data(&ftdic, buf, 1);
+    if(ret < 0) {
+        return NodeFtdi::ThrowLastError("Unable to read from device: ");
+    }
+    return String::New((const char*) buf);
+}
+
 
 Handle<Value> NodeFtdi::Close(const Arguments& args) {
     int ret = ftdi_usb_close(&ftdic);

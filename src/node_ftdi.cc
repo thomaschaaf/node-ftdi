@@ -2,8 +2,7 @@
 #include <iostream>
 #include <sstream>
 
-// TODO: Rename this to node_ftdi.h
-#include "ftdi.h"
+#include "node_ftdi.h"
 
 using namespace std;
 using namespace v8;
@@ -13,10 +12,6 @@ using namespace node_ftdi;
 struct params p;
 struct ftdi_context ftdic;
 Persistent<FunctionTemplate> NodeFtdi::constructor_template;
-
-// TODO: Move this to .h
-int DEFAULT_VID = 0x0403;
-int DEFAULT_PID = 0x6001;
 
 const char* ToCString(Local<String> val) {
     return *String::Utf8Value(val);
@@ -61,8 +56,8 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
     Local<String> serial = String::New("serial");
     Local<String> index = String::New("index");
 
-    p.vid = DEFAULT_VID;
-    p.pid = DEFAULT_PID;
+    p.vid = FTDI_VID;
+    p.pid = FTDI_PID;
     p.description = NULL;
     p.serial = NULL;
     p.index = 0;
@@ -207,8 +202,8 @@ Handle<Value> NodeFtdi::FindAll(const Arguments& args) {
     struct ftdi_device_list *devlist, *curdev;
     char manufacturer[128], description[128], serial[128];
 
-    int vid = args[0]->IsUndefined() ? DEFAULT_VID : args[0]->Int32Value();
-    int pid = args[1]->IsUndefined() ? DEFAULT_PID : args[1]->Int32Value();
+    int vid = args[0]->IsUndefined() ? FTDI_VID : args[0]->Int32Value();
+    int pid = args[1]->IsUndefined() ? FTDI_PID : args[1]->Int32Value();
 
     if ((count = ftdi_usb_find_all(&ftdic, &devlist, vid, pid)) < 0) {
         return NodeFtdi::ThrowLastError("Unable to list devices: ");

@@ -4,7 +4,7 @@
 blddir = 'build'
 VERSION = '0.0.1'
 
-src_files = ['src/ftdi.cc']
+src_files = ['src/node_ftdi.cc']
 target = 'ftdi'
 
 

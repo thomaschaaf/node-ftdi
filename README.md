@@ -29,6 +29,8 @@ Note: Somehow description makes open() fail
 
 `self` **ftdi.setLineProperty(int, int, int)**
 
+`self` **ftdi.setBitmode(int, int)**
+
 `int` **ftdi.write(char)**
 
 `void` **ftdi.close()**

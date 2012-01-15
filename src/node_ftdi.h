@@ -5,6 +5,9 @@
 using namespace v8;
 using namespace node;
 
+#define FTDI_VID    0x0403
+#define FTDI_PID    0x6010
+
 namespace node_ftdi {
 
 struct params {

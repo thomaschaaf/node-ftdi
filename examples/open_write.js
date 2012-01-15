@@ -7,9 +7,7 @@ var ftdi = new Ftdi({
 ftdi.open();
 ftdi.setBaudrate(19200);
 ftdi.setLineProperty(Ftdi.BITS_8, Ftdi.STOP_BIT_2, Ftdi.NONE);
-
 // Turns all relays on, on the USB RLY08
 // http://www.robot-electronics.co.uk/htm/usb_rly08tech.htm
-ftdi.write(String.fromCharCode(91));
-console.log(ftdi.read());
+ftdi.write('d');
 ftdi.close();

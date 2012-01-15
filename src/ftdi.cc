@@ -43,6 +43,7 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target) {
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "close", Close);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "setBaudrate", SetBaudrate);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "setLineProperty", SetLineProperty);
+    NODE_SET_PROTOTYPE_METHOD(constructor_template, "setBitmode", SetBitmode);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "write", Write);
     NODE_SET_PROTOTYPE_METHOD(constructor_template, "read", Read);
 
@@ -87,6 +88,8 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
     }
 
     if (ftdi_init(&ftdic) < 0) {
+        // TODO: do something like this
+        //assert ret >= 0, "ftdi_set_bitmode() failed: %d (%s)" % (ret, self.get_error_string())
         return NodeFtdi::ThrowLastError("Failed to init: ");
     }
     return scope.Close(args.This());
@@ -129,9 +132,9 @@ Handle<Value> NodeFtdi::SetLineProperty(const Arguments& args) {
         return NodeFtdi::ThrowTypeError("Ftdi.setLineProperty(bits, stopbits, parity) expects an 3 integers");
     }
 
-    int bits = args[0]->Uint32Value();
-    int stopbits   = args[1]->Uint32Value();
-    int parity    = args[2]->Uint32Value();
+    int bits     = args[0]->Uint32Value();
+    int stopbits = args[1]->Uint32Value();
+    int parity   = args[2]->Uint32Value();
 
     int ret = ftdi_set_line_property(&ftdic,
         ftdi_bits_type(bits),
@@ -143,6 +146,21 @@ Handle<Value> NodeFtdi::SetLineProperty(const Arguments& args) {
     }
 
     return args.This();
+}
+
+Handle<Value> NodeFtdi::SetBitmode(const Arguments& args) {
+    if (args.Length() < 3 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
+        return NodeFtdi::ThrowTypeError("Ftdi.setBitmode(mask, mode) expects an 2 integers");
+    }
+
+    int mask = args[0]->Uint32Value();
+    int mode = args[1]->Uint32Value();
+
+    int ret = ftdi_set_bitmode(&ftdic, mask, mode);
+
+    if(ret < 0) {
+        return NodeFtdi::ThrowLastError("Unable to set bit mode: ");
+    }
 }
 
 Handle<Value> NodeFtdi::Write(const Arguments& args) {

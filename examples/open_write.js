@@ -2,8 +2,7 @@ var Ftdi = require('../index');
 var ftdi = new Ftdi({
     'vid': 0x0403,
     'pid': 0x6001,
-    'index':0,
-    'serial': 'A700ethE'
+    'index':0
 });
 ftdi.open();
 ftdi.setBaudrate(19200);

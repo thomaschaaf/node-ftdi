@@ -66,11 +66,12 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
 
     if(args[0]->IsObject()) {
         Local<Object> obj = args[0]->ToObject();
+
         if(obj->Has(vid)) {
-            p.vid = ToInt(obj->Get(vid)->ToNumber());
+            p.vid = obj->Get(vid)->Int32Value();
         }
         if(obj->Has(pid)) {
-            p.pid = ToInt(obj->Get(pid)->ToNumber());
+            p.pid = obj->Get(pid)->Int32Value();
         }
         if(obj->Has(description)) {
             p.description = ToCString(obj->Get(description)->ToString());
@@ -79,7 +80,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
             p.serial = ToCString(obj->Get(serial)->ToString());
         }
         if(obj->Has(index)) {
-            p.index = (unsigned int) ToInt(obj->Get(index)->ToNumber());
+            p.index = (unsigned int) obj->Get(index)->Int32Value();
         }
     }
 

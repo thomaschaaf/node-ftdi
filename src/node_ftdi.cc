@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
 #include <sstream>
@@ -47,7 +48,6 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target) {
     target->Set(String::NewSymbol("Ftdi"), constructor_template->GetFunction());
 }
 
-// new NodeFtdi(vid, pid);
 Handle<Value> NodeFtdi::New(const Arguments& args) {
     HandleScope scope;
     Local<String> vid = String::New("vid");
@@ -83,10 +83,9 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
     }
 
     if (ftdi_init(&ftdic) < 0) {
-        // TODO: do something like this
-        //assert ret >= 0, "ftdi_set_bitmode() failed: %d (%s)" % (ret, self.get_error_string())
         return NodeFtdi::ThrowLastError("Failed to init: ");
     }
+
     return scope.Close(args.This());
 }
 
@@ -106,7 +105,6 @@ Handle<Value> NodeFtdi::Open(const Arguments& args) {
 }
 
 Handle<Value> NodeFtdi::SetBaudrate(const Arguments& args) {
-    //TODO: Add check that the device is open
     if (args.Length() < 1 || !args[0]->IsNumber()) {
         return NodeFtdi::ThrowTypeError("Ftdi.setBaudrate() expects an integer");
     }
@@ -122,7 +120,6 @@ Handle<Value> NodeFtdi::SetBaudrate(const Arguments& args) {
 }
 
 Handle<Value> NodeFtdi::SetLineProperty(const Arguments& args) {
-    //TODO: Add check that the device is open
     if (args.Length() < 3 || !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber()) {
         return NodeFtdi::ThrowTypeError("Ftdi.setLineProperty(bits, stopbits, parity) expects an 3 integers");
     }
@@ -159,7 +156,6 @@ Handle<Value> NodeFtdi::SetBitmode(const Arguments& args) {
 }
 
 Handle<Value> NodeFtdi::Write(const Arguments& args) {
-    //TODO: Add check that the device is open
     if (args.Length() < 1 || !args[0]->IsString()) {
         return NodeFtdi::ThrowTypeError("Ftdi.write() expects a string");
     }
@@ -175,7 +171,6 @@ Handle<Value> NodeFtdi::Write(const Arguments& args) {
 }
 
 Handle<Value> NodeFtdi::Read(const Arguments& args) {
-    //TODO: Add check that the device is open
     uint8_t buf[1];
     int ret = ftdi_read_data(&ftdic, buf, 1);
     if(ret < 0) {
@@ -186,7 +181,6 @@ Handle<Value> NodeFtdi::Read(const Arguments& args) {
 
 
 Handle<Value> NodeFtdi::Close(const Arguments& args) {
-    //TODO: Add check that the device is open
     int ret = ftdi_usb_close(&ftdic);
     if (ret < 0) {
         return NodeFtdi::ThrowLastError("Failed to close device: ");

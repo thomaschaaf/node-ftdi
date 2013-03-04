@@ -1,0 +1,1 @@
+cmd_Release/node-ftdi.node := ln -f "Release/obj.target/node-ftdi.node" "Release/node-ftdi.node" 2>/dev/null || (rm -rf "Release/node-ftdi.node" && cp -af "Release/obj.target/node-ftdi.node" "Release/node-ftdi.node")

@@ -1,4 +1,4 @@
- var Ftdi = require('./build/Release/ftdi.node').Ftdi;
+ var Ftdi = require('bindings')('node-ftdi').Ftdi;
 
 // Number of bits for ftdi_set_line_property()
 Ftdi.BITS_7      = 7;

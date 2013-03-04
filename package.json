@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "description": "FTDI bindings for Node.js",
   "main": "index.js",
+  "dependencies": {
+    "bindings": "1.0.x"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "preinstall": "node-gyp rebuild"
@@ -24,6 +27,5 @@
   "license": {
     "type": "MIT",
     "url": "https://raw.github.com/KABA-CCEAC/node-ftdi/master/licence"
-  },
-  "readmeFilename": "README.md"
+  }
 }

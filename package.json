@@ -1,0 +1,29 @@
+{
+  "name": "ftdi",
+  "version": "0.0.1",
+  "description": "FTDI bindings for Node.js",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "preinstall": "node-gyp rebuild"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/KABA-CCEAC/node-ftdi.git"
+  },
+  "keywords": [
+    "ftdi",
+    "usb",
+    "driver",
+    "device"
+  ],
+  "homepage": "https://github.com/KABA-CCEAC/node-ftdi",
+  "bugs": {
+    "url": "https://github.com/KABA-CCEAC/node-ftdi/issues"
+  },
+  "license": {
+    "type": "MIT",
+    "url": "https://raw.github.com/KABA-CCEAC/node-ftdi/master/licence"
+  },
+  "readmeFilename": "README.md"
+}

@@ -153,6 +153,8 @@ Handle<Value> NodeFtdi::SetBitmode(const Arguments& args) {
     if(ret < 0) {
         return NodeFtdi::ThrowLastError("Unable to set bit mode: ");
     }
+
+    return Number::New(ret);
 }
 
 Handle<Value> NodeFtdi::Write(const Arguments& args) {

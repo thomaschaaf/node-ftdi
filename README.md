@@ -2,40 +2,48 @@
 
 FTDI Bindings for Node.js
 
-# API
 
-## Constructor
+# Installing
 
-`self` **Ftdi(obj)**
+## Prerequisites:
 
-``` js
-// Example for USB RLY08
-var ftdi = new Ftdi({
-    'vendorID': 0x0403,
-    'productID': 0x6001,
-    'description': 'FT232R USB UART'
-    'serial': 'A700ethE'
-    'index': 0
-});
-```
+Install the driver: [ftdi](http://www.ftdichip.com/Drivers/D2XX.htm)
 
-Note: Somehow description makes open() fail
-
-## Instance methods
-
-`void` **ftdi.open()**
-
-`self` **ftdi.setBaudrate(int)**
-
-`self` **ftdi.setLineProperty(int, int, int)**
-
-`self` **ftdi.setBitmode(int, int)**
-
-`int` **ftdi.write(char)**
-
-`void` **ftdi.close()**
+If you're are using a Linux distribution or Mac OS X you can run the script file...
 
 
-## Class methods
+    npm install devicestack
 
-`Array` **Ftdi.findAll([vid [,pid]])**
+
+
+
+
+
+# Release Notes
+
+## v0.1.0
+
+- first release
+
+
+# License
+
+Copyright (c) 2013 Kaba AG
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

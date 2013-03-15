@@ -1,7 +1,22 @@
-# Node-ftdi
+<pre>
+  eeeee eeeee eeeee eeee       e  eeeee 
+  8   8 8  88 8   8 8          8  8   " 
+  8e  8 8   8 8e  8 8eee       8e 8eeee 
+  88  8 8   8 88  8 88      e  88    88 
+  88  8 8eee8 88ee8 88ee 88 8ee88 8ee88
 
-FTDI Bindings for Node.js
+  eeee eeeee eeeee e  
+  8      8   8   8 8  
+  8eee   8e  8e  8 8e 
+  88     88  88  8 88 
+  88     88  88ee8 88 
+</pre>
 
+# Introduction
+
+[![Build Status](https://secure.travis-ci.org/KABA-CCEAC/node-ftdi.png)](http://travis-ci.org/KABA-CCEAC/node-ftdi)
+
+This module helps you to represent a device and its protocol.
 
 # Installing
 
@@ -14,10 +29,86 @@ If you're are using a Linux distribution or Mac OS X you can run the script file
 
     npm install devicestack
 
+This assumes you have everything on your system necessary to compile ANY native module for Node.js. This may not be the case, though, so please ensure the following are true for your system before filing an issue about "Does not install". For all operatings systems, please ensure you have Python 2.x installed AND not 3.0, [node-gyp](https://github.com/TooTallNate/node-gyp) (what we use to compile) requires Python 2.x.
+
+### Windows:
+
+Ensure you have Visual Studio 2010 installed. If you have any version OTHER THAN VS 2010, please read this: https://github.com/TooTallNate/node-gyp/issues/44 
+
+### Mac OS X:
+
+Ensure that you have at a minimum the xCode Command Line Tools installed appropriate for your system configuration. If you recently upgrade OS, it probably removed your installation of Command Line Tools, please verify before submitting a ticket.
+
+### Linux:
+
+You know what you need for you system, basically your appropriate analog of build-essential. Keep rocking!
 
 
+# Usage
 
+## Listing or finding devices
 
+```nodejs
+var ftdi = require('ftdi');
+
+ftdi.find(function(err, devices) {});                 // returns all ftdi devices
+
+ftdi.find(0x27f4, function(err, devices) {});         // returns all ftdi devices
+                                                      // with matching vendor id
+
+ftdi.find(0x27f4, 0x0203, function(err, devices) {}); // returns all ftdi devices with
+                                                      // matching vendor and product id
+```
+
+## Create an FtdiDevice
+
+```nodejs
+var ftdi = require('ftdi');
+
+var device = new ftdi.FtdiPort(serialnumber, locationId);
+// or
+var device = new ftdi.FtdiSerialPort(portName, {
+  baudrate: 115200,
+  databits: 8,
+  stopbits: 1,
+  parity: 'none'
+});
+```
+
+## All together
+
+```nodejs
+var ftdi = require('ftdi');
+
+ftdi.find(0x27f4, 0x0203, function(err, devices) {
+  var device = devices[0];
+  // or
+  // var device = new ftdi.FtdiPort(serialnumber, locationId);
+  // or
+  // var device = new ftdi.FtdiSerialPort(portName, {
+  //   baudrate: 115200,
+  //   databits: 8,
+  //   stopbits: 1,
+  //   parity: 'none'
+  // });
+
+  device.on('error', function(err) {
+  });
+
+  device.open(function(err) {
+
+    device.on('data', function(data) {
+
+    });
+
+    device.write([0x01, 0x02, 0x03, 0x04, 0x05], function(err) {
+
+    });
+
+  });
+
+});
+```
 
 # Release Notes
 

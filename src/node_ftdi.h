@@ -52,7 +52,6 @@ class NodeFtdi : public ObjectWrap
     private:
         static Persistent<Object> module_handle;
         static Persistent<String> callback_symbol;
-        static void ReadData(uv_work_t* req);
         static void ReadCallback(uv_work_t* req);
         void SetDeviceSettings(Local<v8::Object> options);
 

@@ -24,7 +24,7 @@ This module helps you to represent a device and its protocol.
 
 Install the driver: [ftdi](http://www.ftdichip.com/Drivers/D2XX.htm)
 
-If you're are using a Linux distribution or Mac OS X you can run the script file...
+If you're are using a Linux distribution or Mac OS X you can run the install.sh script file...
 
 
     npm install ftdi

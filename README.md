@@ -65,14 +65,13 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {}); // returns all ftdi device
 ```nodejs
 var ftdi = require('ftdi');
 
-var device = new ftdi.FtdiPort(serialnumber, locationId);
-// or
-var device = new ftdi.FtdiSerialPort(portName, {
-  baudrate: 115200,
-  databits: 8,
-  stopbits: 1,
-  parity: 'none'
+var device = new ftdi.FtdiDevice({
+  locationId: 0,
+  serialNumber: 0
 });
+
+// or
+var device = new ftdi.FtdiDevice(0);  // index in list function
 ```
 
 ## All together
@@ -82,20 +81,17 @@ var ftdi = require('ftdi');
 
 ftdi.find(0x27f4, 0x0203, function(err, devices) {
   var device = devices[0];
-  // or
-  // var device = new ftdi.FtdiPort(serialnumber, locationId);
-  // or
-  // var device = new ftdi.FtdiSerialPort(portName, {
-  //   baudrate: 115200,
-  //   databits: 8,
-  //   stopbits: 1,
-  //   parity: 'none'
-  // });
 
   device.on('error', function(err) {
   });
 
-  device.open(function(err) {
+  device.open({
+    baudrate: 115200,
+    databits: 8,
+    stopbits: 1,
+    parity: 'none'
+  },
+  function(err) {
 
     device.on('data', function(data) {
 

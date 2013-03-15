@@ -9,20 +9,24 @@ echo Detected Platform:
 
 ostype='unknown'
 platform='unknown'
-link='';
+link=''
+getcommand=''
 unamestr=`uname -s`
 
 if [ "$unamestr" == 'Linux' ]
 then
    ostype='linux'
    link=$FTDI_LINUX_LINK
-elif [ "$unamestr" == 'darwin' ]
- then
+   getcommand='wget'
+elif [ "$unamestr" == 'Darwin' ]
+then
    ostype='mac'
    link=$FTDI_MAC_LINK
+   filename=`basename $link`
+   getcommand="curl -o $filename"
 fi
 
-if [ $(uname -m) == 'x86_46' ]
+if [ $(uname -m) == 'x86_64' ]
 then
    platform='64bit'
 else
@@ -33,7 +37,7 @@ fi
 
 echo $ostype \($platform\)
 echo Download FTDI Library
-wget $link
+$getcommand $link
 filename=`basename $link`
 
 if [ "$ostype" ==  "linux" ]
@@ -53,4 +57,13 @@ then
    rm $filename
    rm -r tmp
    ldconfig
+elif [ "$ostype" ==  "mac" ]
+then
+   hdiutil attach $filename
+   cp /Volumes/release/D2XX/bin/10.5-10.7/libftd2xx.$LIB_VERSION.dylib /usr/local/lib/libftd2xx.$LIB_VERSION.dylib
+   ln -sf /usr/local/lib/libftd2xx.$LIB_VERSION.dylib /usr/local/lib/libftd2xx.dylib
+   cp /Volumes/release/D2XX/Samples/ftd2xx.h /usr/local/include/ftd2xx.h
+   cp /Volumes/release/D2XX/Samples/WinTypes.h /usr/local/include/WinTypes.h
+   rm $filename
+   hdiutil detach /Volumes/release
 fi

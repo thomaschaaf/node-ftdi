@@ -2,53 +2,137 @@
 #include <stdlib.h>
 #include <iostream>
 #include <sstream>
+#include <pthread.h>
+#include <unistd.h>
+
+#include <queue>
 
 #include "node_ftdi.h"
+#include "ftdi_driver.h"
 
 using namespace std;
 using namespace v8;
 using namespace node;
 using namespace node_ftdi;
 
-struct params p;
-struct ftdi_context ftdic;
-Persistent<FunctionTemplate> NodeFtdi::constructor_template;
+struct ReadBaton 
+{
+  FT_HANDLE ftHandle;
+  EVENT_HANDLE eh;
+  uint8_t* readData;
+  size_t bufferLength;
+  v8::Persistent<v8::Value> callback;
+  int result;
+};
 
-const char* ToCString(Local<String> val) {
+const char* ToCString(Local<String> val) 
+{
     return *String::Utf8Value(val);
 }
 
-Handle<Value> NodeFtdi::ThrowTypeError(std::string message) {
+Handle<Value> NodeFtdi::ThrowTypeError(std::string message) 
+{
     return ThrowException(Exception::TypeError(String::New(message.c_str())));
 }
 
-Handle<Value> NodeFtdi::ThrowLastError(std::string message) {
+Handle<Value> NodeFtdi::ThrowLastError(std::string message) 
+{
     Local<String> msg = String::New(message.c_str());
-    Local<String> str = String::New(ftdi_get_error_string(&ftdic));
 
-    return ThrowException(Exception::Error(String::Concat(msg, str)));
+    return ThrowException(Exception::Error(msg));
 }
 
-void NodeFtdi::Initialize(v8::Handle<v8::Object> target) {
-    Local<FunctionTemplate> t = FunctionTemplate::New(New);
-    constructor_template = Persistent<FunctionTemplate>::New(t);
-    constructor_template->SetClassName(String::NewSymbol("Ftdi"));
-    constructor_template->InstanceTemplate()->SetInternalFieldCount(1);
 
-    NODE_SET_PROTOTYPE_METHOD(constructor_template, "open", Open);
-    NODE_SET_PROTOTYPE_METHOD(constructor_template, "close", Close);
-    NODE_SET_PROTOTYPE_METHOD(constructor_template, "setBaudrate", SetBaudrate);
-    NODE_SET_PROTOTYPE_METHOD(constructor_template, "setLineProperty", SetLineProperty);
-    NODE_SET_PROTOTYPE_METHOD(constructor_template, "setBitmode", SetBitmode);
-    NODE_SET_PROTOTYPE_METHOD(constructor_template, "write", Write);
-    NODE_SET_PROTOTYPE_METHOD(constructor_template, "read", Read);
+// void NodeFtdi::ReadData(uv_work_t* req)
+// {
+//     ReadBaton* data = static_cast<ReadBaton*>(req->data);
 
-    NODE_SET_METHOD(constructor_template, "findAll", FindAll);
+//     FT_STATUS ftStatus;
+//     DWORD RxBytes;
+//     DWORD BytesReceived;
+
+//     printf("Waiting for data\r\n");
     
-    target->Set(String::NewSymbol("Ftdi"), constructor_template->GetFunction());
+//     pthread_mutex_lock(&(data->eh).eMutex);
+//     pthread_cond_wait(&(data->eh).eCondVar, &(data->eh).eMutex);
+//     pthread_mutex_unlock(&(data->eh).eMutex);
+
+//     FT_GetQueueStatus(data->ftHandle, &RxBytes);
+//     printf("Status [RX: %d]\r\n", RxBytes);
+
+//     if(RxBytes > 0)
+//     {
+//         data->readData = (uint8_t *)malloc(RxBytes);
+
+//         ftStatus = FT_Read(data->ftHandle, data->readData, RxBytes, &BytesReceived);
+//         if (ftStatus != FT_OK) 
+//         {
+//             fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+//         }
+//         data->bufferLength = BytesReceived;
+//     }
+// }
+
+void NodeFtdi::ReadCallback(uv_work_t* req)
+{
+    HandleScope scope;
+    ReadBaton* data = static_cast<ReadBaton*>(req->data);
+
+    printf("ReadCallback\r\n");
+
+    if(data->callback->IsFunction())
+    {
+        Handle<Value> argv[1];
+        Local<Object> array = Object::New();
+        array->SetIndexedPropertiesToExternalArrayData(data->readData, kExternalUnsignedByteArray, data->bufferLength);
+        argv[0] = array;
+
+
+        // Buffer *slowBuffer = node::Buffer::New(data->bufferLength);
+        // memcpy(Buffer::Data(slowBuffer), data->readData, data->bufferLength);
+        // Local<Object> globalObj = Context::GetCurrent()->Global();
+
+        // Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
+        // Handle<Value> constructorArgs[3] = { slowBuffer->handle_, Integer::New(data->bufferLength), Integer::New(0) };
+        // Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
+        // argv[0] = actualBuffer;
+
+        Function::Cast(*data->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+
+    }
+    else
+    {
+        printf("Could not call dataCb\r\n");
+    }
+
+    free(data->readData);
+
+    uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadData, (uv_after_work_cb)NodeFtdi::ReadCallback);
 }
 
-Handle<Value> NodeFtdi::New(const Arguments& args) {
+NodeFtdi::NodeFtdi() {};
+NodeFtdi::~NodeFtdi() {};
+
+void NodeFtdi::Initialize(v8::Handle<v8::Object> target) 
+{
+
+    printf("Initialize NodeFtdi\r\n");
+
+    // Prepare constructor template
+    Local<FunctionTemplate> tpl = FunctionTemplate::New(New);
+    tpl->SetClassName(String::NewSymbol("FtdiDevice"));
+    tpl->InstanceTemplate()->SetInternalFieldCount(1);
+    // Prototype
+    tpl->PrototypeTemplate()->Set(String::NewSymbol("write"), FunctionTemplate::New(Write)->GetFunction());
+    tpl->PrototypeTemplate()->Set(String::NewSymbol("registerDataCallback"), FunctionTemplate::New(RegisterDataCallback)->GetFunction());
+    tpl->PrototypeTemplate()->Set(String::NewSymbol("open"), FunctionTemplate::New(Open)->GetFunction());
+
+    Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
+    target->Set(String::NewSymbol("FtdiDevice"), constructor);
+}
+
+Handle<Value> NodeFtdi::New(const Arguments& args) 
+{
     HandleScope scope;
     Local<String> vid = String::New("vid");
     Local<String> pid = String::New("pid");
@@ -56,175 +140,164 @@ Handle<Value> NodeFtdi::New(const Arguments& args) {
     Local<String> serial = String::New("serial");
     Local<String> index = String::New("index");
 
-    p.vid = FTDI_VID;
-    p.pid = FTDI_PID;
-    p.description = NULL;
-    p.serial = NULL;
-    p.index = 0;
+    NodeFtdi* object = new NodeFtdi();
+
+    object->p.vid = FTDI_VID;
+    object->p.pid = FTDI_PID;
+    object->p.description = NULL;
+    object->p.serial = NULL;
+    object->p.index = 0;
+
+    printf("Create New FTDI Object\r\n");
 
     if(args[0]->IsObject()) {
         Local<Object> obj = args[0]->ToObject();
 
         if(obj->Has(vid)) {
-            p.vid = obj->Get(vid)->Int32Value();
+            object->p.vid = obj->Get(vid)->Int32Value();
         }
         if(obj->Has(pid)) {
-            p.pid = obj->Get(pid)->Int32Value();
+            object->p.pid = obj->Get(pid)->Int32Value();
         }
         if(obj->Has(description)) {
-            p.description = ToCString(obj->Get(description)->ToString());
+            object->p.description = ToCString(obj->Get(description)->ToString());
         }
         if(obj->Has(serial)) {
-            p.serial = ToCString(obj->Get(serial)->ToString());
+            object->p.serial = ToCString(obj->Get(serial)->ToString());
         }
         if(obj->Has(index)) {
-            p.index = (unsigned int) obj->Get(index)->Int32Value();
+            object->p.index = (unsigned int) obj->Get(index)->Int32Value();
         }
     }
 
-    if (ftdi_init(&ftdic) < 0) {
-        return NodeFtdi::ThrowLastError("Failed to init: ");
-    }
+    printf("VID: %x, PID: %x\r\n", object->p.vid, object->p.pid);
+    FT_SetVIDPID (object->p.vid, object->p.pid);
 
-    return scope.Close(args.This());
-}
-
-Handle<Value> NodeFtdi::Open(const Arguments& args) {
-    int ret = ftdi_usb_open_desc_index(&ftdic,
-        p.vid,
-        p.pid,
-        p.description,
-        p.serial,
-        p.index);
-
-    if(ret < 0) {
-        return NodeFtdi::ThrowLastError("Unable to open device: ");
-    }
+    object->Wrap(args.This());
 
     return args.This();
 }
 
-Handle<Value> NodeFtdi::SetBaudrate(const Arguments& args) {
-    if (args.Length() < 1 || !args[0]->IsNumber()) {
-        return NodeFtdi::ThrowTypeError("Ftdi.setBaudrate() expects an integer");
+
+Handle<Value> NodeFtdi::Open(const Arguments& args) 
+{
+    HandleScope scope;
+    DWORD EventMask;
+    FT_STATUS ftStatus;
+
+    // Get Object
+    NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+
+    if (args.Length() < 1 || !args[0]->IsString()) 
+    {
+        return NodeFtdi::ThrowTypeError("open() expects a string as first argument");
+    }
+    std::string serial(*String::Utf8Value(args[0]));
+
+      // options
+    if(!args[1]->IsObject()) 
+    {
+        return NodeFtdi::ThrowTypeError("open() expects a object as second argument");
+    }
+    Local<v8::Object> options = args[1]->ToObject();
+
+    printf("Open Device %s\r\n",  (unsigned char*) serial.c_str());
+
+    ftStatus = FT_OpenEx((unsigned char*) serial.c_str(), FT_OPEN_BY_SERIAL_NUMBER, &(obj->ftHandle));
+    if (ftStatus != FT_OK) 
+    {
+        fprintf(stderr, "Can't open ftdi device: %d\n", ftStatus);
     }
 
-    int baudrate = args[0]->Int32Value();
-    int ret = ftdi_set_baudrate(&ftdic, baudrate);
+    obj->SetDeviceSettings(options);
 
-    if(ret < 0) {
-        return NodeFtdi::ThrowLastError("Unable to set baudrate: ");
-    }
+    ReadBaton* baton = new ReadBaton();
+    baton->ftHandle = obj->ftHandle;
+    baton->callback = obj->dataCallback;
+    pthread_mutex_init(&(baton->eh).eMutex, NULL);
+    pthread_cond_init(&(baton->eh).eCondVar, NULL);
+    EventMask = FT_EVENT_RXCHAR;
+    ftStatus = FT_SetEventNotification(obj->ftHandle, EventMask, (PVOID)&(baton->eh));
+
+    uv_work_t* req = new uv_work_t();
+    req->data = baton;
+    uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadData, (uv_after_work_cb)NodeFtdi::ReadCallback);
 
     return args.This();
 }
 
-Handle<Value> NodeFtdi::SetLineProperty(const Arguments& args) {
-    if (args.Length() < 3 || !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber()) {
-        return NodeFtdi::ThrowTypeError("Ftdi.setLineProperty(bits, stopbits, parity) expects an 3 integers");
+void NodeFtdi::SetDeviceSettings(Local<v8::Object> options)
+{
+    FT_STATUS ftStatus;
+    int baudRate = options->Get(v8::String::New("baudrate"))->ToInt32()->Int32Value();
+    
+    ftStatus = FT_SetDataCharacteristics(ftHandle, FT_BITS_8, FT_STOP_BITS_1, FT_PARITY_NONE);
+    if (ftStatus != FT_OK) 
+    {
+        return;
     }
 
-    int bits     = args[0]->Uint32Value();
-    int stopbits = args[1]->Uint32Value();
-    int parity   = args[2]->Uint32Value();
-
-    int ret = ftdi_set_line_property(&ftdic,
-        ftdi_bits_type(bits),
-        ftdi_stopbits_type(stopbits),
-        ftdi_parity_type(parity));
-
-    if(ret < 0) {
-        return NodeFtdi::ThrowLastError("Unable to set line property: ");
+    ftStatus = FT_SetBaudRate(ftHandle, baudRate);
+    if (ftStatus != FT_OK) 
+    {
+        fprintf(stderr, "Can't setBaudRate: %d\n", ftStatus);
     }
-
-    return args.This();
-}
-
-Handle<Value> NodeFtdi::SetBitmode(const Arguments& args) {
-    if (args.Length() < 3 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
-        return NodeFtdi::ThrowTypeError("Ftdi.setBitmode(mask, mode) expects an 2 integers");
-    }
-
-    int mask = args[0]->Uint32Value();
-    int mode = args[1]->Uint32Value();
-
-    int ret = ftdi_set_bitmode(&ftdic, mask, mode);
-
-    if(ret < 0) {
-        return NodeFtdi::ThrowLastError("Unable to set bit mode: ");
-    }
-
-    return Number::New(ret);
-}
-
-Handle<Value> NodeFtdi::Write(const Arguments& args) {
-    if (args.Length() < 1 || !args[0]->IsString()) {
-        return NodeFtdi::ThrowTypeError("Ftdi.write() expects a string");
-    }
-
-    std::string str(*String::Utf8Value(args[0]));
-
-    int ret = ftdi_write_data(&ftdic, (unsigned char*) str.c_str(), str.size());
-    if(ret < 0) {
-        return NodeFtdi::ThrowLastError("Unable to write to device: ");
-    }
-
-    return Number::New(ret);
-}
-
-Handle<Value> NodeFtdi::Read(const Arguments& args) {
-    uint8_t buf[1];
-    int ret = ftdi_read_data(&ftdic, buf, 1);
-    if(ret < 0) {
-        return NodeFtdi::ThrowLastError("Unable to read from device: ");
-    }
-    return String::New((const char*) buf);
+    printf("BaudRate set to: %d\r\n", baudRate);
 }
 
 
-Handle<Value> NodeFtdi::Close(const Arguments& args) {
-    int ret = ftdi_usb_close(&ftdic);
-    if (ret < 0) {
-        return NodeFtdi::ThrowLastError("Failed to close device: ");
+Handle<Value> NodeFtdi::Write(const Arguments& args) 
+{
+    HandleScope scope;
+    FT_STATUS ftStatus;
+    DWORD BytesWritten;
+
+    // Get Object
+    NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+
+     // buffer
+    if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
+    {
+        return scope.Close(v8::ThrowException(Exception::TypeError(String::New("First argument must be a buffer"))));
     }
+    Persistent<Object> buffer = Persistent<Object>::New(args[0]->ToObject());
+    char* bufferData = Buffer::Data(buffer);
+    DWORD bufferLength = Buffer::Length(buffer);
 
-    ftdi_deinit(&ftdic);
+    ftStatus = FT_Write(obj->ftHandle, bufferData, bufferLength, &BytesWritten);
+    if (ftStatus != FT_OK) 
+    {
+        fprintf(stderr, "Can't write to ftdi device: %d\n", ftStatus);
+        return NodeFtdi::ThrowTypeError("Can't write to ftdi device");
+    }
+    printf("%d bytes written\r\n", BytesWritten);
 
-    return args.This();
+    return scope.Close(v8::Undefined());
 }
 
-Handle<Value> NodeFtdi::FindAll(const Arguments& args) {
-    int count, i = 0;
-    struct ftdi_device_list *devlist, *curdev;
-    char manufacturer[128], description[128], serial[128];
+Handle<Value> NodeFtdi::RegisterDataCallback(const Arguments& args) 
+{
+    HandleScope scope;
 
-    int vid = args[0]->IsUndefined() ? FTDI_VID : args[0]->Int32Value();
-    int pid = args[1]->IsUndefined() ? FTDI_PID : args[1]->Int32Value();
+    // Get Object
+    NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
 
-    if ((count = ftdi_usb_find_all(&ftdic, &devlist, vid, pid)) < 0) {
-        return NodeFtdi::ThrowLastError("Unable to list devices: ");
+    printf("RegisterDataCallback\r\n");
+
+    // callback
+    if(!args[0]->IsFunction()) 
+    {
+        return scope.Close(v8::ThrowException(v8::Exception::TypeError(v8::String::New("First argument must be a function"))));
     }
+    Local<Value> callback = args[0];
 
-    Local<Array> array = Array::New(count);
+    obj->dataCallback = Persistent<Value>::New(callback);
 
-    for (curdev = devlist; curdev != NULL; i++) {
-        if (ftdi_usb_get_strings(&ftdic, curdev->dev, manufacturer, 128, description, 128, serial, 128) < 0) {
-            return NodeFtdi::ThrowLastError("Unable to get information on devices: ");
-        }
-
-        Local<Object> obj = Object::New();
-        obj->Set(String::New("manufacturer"), String::New(manufacturer));
-        obj->Set(String::New("description"), String::New(description));
-        obj->Set(String::New("serial"), String::New(serial));
-        array->Set(i, obj);
-        curdev = curdev->next;
-    }
-
-    ftdi_list_free(&devlist);
-
-    return array;
+    return scope.Close(v8::Undefined());
 }
 
-extern "C" void init (Handle<Object> target) {
+extern "C" void init (Handle<Object> target) 
+{
+    InitializeList(target);
     NodeFtdi::Initialize(target);
 }

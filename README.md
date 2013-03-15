@@ -27,7 +27,7 @@ Install the driver: [ftdi](http://www.ftdichip.com/Drivers/D2XX.htm)
 If you're are using a Linux distribution or Mac OS X you can run the script file...
 
 
-    npm install devicestack
+    npm install ftdi
 
 This assumes you have everything on your system necessary to compile ANY native module for Node.js. This may not be the case, though, so please ensure the following are true for your system before filing an issue about "Does not install". For all operatings systems, please ensure you have Python 2.x installed AND not 3.0, [node-gyp](https://github.com/TooTallNate/node-gyp) (what we use to compile) requires Python 2.x.
 

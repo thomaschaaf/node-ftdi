@@ -2,12 +2,12 @@
 #include <stdlib.h>
 #include <iostream>
 #include <sstream>
-#include <pthread.h>
 #include <unistd.h>
-
+#include <string.h>
 #include <queue>
 
 #include "node_ftdi.h"
+#include "node_ftdi_platform.h"
 #include "ftdi_driver.h"
 
 using namespace std;
@@ -15,15 +15,6 @@ using namespace v8;
 using namespace node;
 using namespace node_ftdi;
 
-struct ReadBaton 
-{
-  FT_HANDLE ftHandle;
-  EVENT_HANDLE eh;
-  uint8_t* readData;
-  size_t bufferLength;
-  v8::Persistent<v8::Value> callback;
-  int result;
-};
 
 const char* ToCString(Local<String> val) 
 {
@@ -43,35 +34,35 @@ Handle<Value> NodeFtdi::ThrowLastError(std::string message)
 }
 
 
-void NodeFtdi::ReadData(uv_work_t* req)
-{
-    ReadBaton* data = static_cast<ReadBaton*>(req->data);
+// void NodeFtdi::ReadData(uv_work_t* req)
+// {
+//     ReadBaton* data = static_cast<ReadBaton*>(req->data);
 
-    FT_STATUS ftStatus;
-    DWORD RxBytes;
-    DWORD BytesReceived;
+//     FT_STATUS ftStatus;
+//     DWORD RxBytes;
+//     DWORD BytesReceived;
 
-    printf("Waiting for data\r\n");
+//     printf("Waiting for data\r\n");
     
-    pthread_mutex_lock(&(data->eh).eMutex);
-    pthread_cond_wait(&(data->eh).eCondVar, &(data->eh).eMutex);
-    pthread_mutex_unlock(&(data->eh).eMutex);
+//     pthread_mutex_lock(&(data->eh).eMutex);
+//     pthread_cond_wait(&(data->eh).eCondVar, &(data->eh).eMutex);
+//     pthread_mutex_unlock(&(data->eh).eMutex);
 
-    FT_GetQueueStatus(data->ftHandle, &RxBytes);
-    printf("Status [RX: %d]\r\n", RxBytes);
+//     FT_GetQueueStatus(data->ftHandle, &RxBytes);
+//     printf("Status [RX: %d]\r\n", RxBytes);
 
-    if(RxBytes > 0)
-    {
-        data->readData = (uint8_t *)malloc(RxBytes);
+//     if(RxBytes > 0)
+//     {
+//         data->readData = (uint8_t *)malloc(RxBytes);
 
-        ftStatus = FT_Read(data->ftHandle, data->readData, RxBytes, &BytesReceived);
-        if (ftStatus != FT_OK) 
-        {
-            fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
-        }
-        data->bufferLength = BytesReceived;
-    }
-}
+//         ftStatus = FT_Read(data->ftHandle, data->readData, RxBytes, &BytesReceived);
+//         if (ftStatus != FT_OK) 
+//         {
+//             fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+//         }
+//         data->bufferLength = BytesReceived;
+//     }
+// }
 
 void NodeFtdi::ReadCallback(uv_work_t* req)
 {
@@ -83,19 +74,19 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
     if(data->callback->IsFunction())
     {
         Handle<Value> argv[1];
-        Local<Object> array = Object::New();
-        array->SetIndexedPropertiesToExternalArrayData(data->readData, kExternalUnsignedByteArray, data->bufferLength);
-        argv[0] = array;
+        // Local<Object> array = Object::New();
+        // array->SetIndexedPropertiesToExternalArrayData(data->readData, kExternalUnsignedByteArray, data->bufferLength);
+        // argv[0] = array;
 
 
-        // Buffer *slowBuffer = node::Buffer::New(data->bufferLength);
-        // memcpy(Buffer::Data(slowBuffer), data->readData, data->bufferLength);
-        // Local<Object> globalObj = Context::GetCurrent()->Global();
+        Buffer *slowBuffer = node::Buffer::New(data->bufferLength);
+        memcpy(Buffer::Data(slowBuffer), data->readData, data->bufferLength);
+        Local<Object> globalObj = Context::GetCurrent()->Global();
 
-        // Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
-        // Handle<Value> constructorArgs[3] = { slowBuffer->handle_, Integer::New(data->bufferLength), Integer::New(0) };
-        // Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
-        // argv[0] = actualBuffer;
+        Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
+        Handle<Value> constructorArgs[3] = { slowBuffer->handle_, Integer::New(data->bufferLength), Integer::New(0) };
+        Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
+        argv[0] = actualBuffer;
 
         Function::Cast(*data->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
 
@@ -107,7 +98,7 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
 
     free(data->readData);
 
-    uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadData, (uv_after_work_cb)NodeFtdi::ReadCallback);
+    uv_queue_work(uv_default_loop(), req, ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
 }
 
 NodeFtdi::NodeFtdi() {};
@@ -221,7 +212,7 @@ Handle<Value> NodeFtdi::Open(const Arguments& args)
 
     uv_work_t* req = new uv_work_t();
     req->data = baton;
-    uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadData, (uv_after_work_cb)NodeFtdi::ReadCallback);
+    uv_queue_work(uv_default_loop(), req, ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
 
     return args.This();
 }

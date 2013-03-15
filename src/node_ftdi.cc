@@ -43,35 +43,35 @@ Handle<Value> NodeFtdi::ThrowLastError(std::string message)
 }
 
 
-// void NodeFtdi::ReadData(uv_work_t* req)
-// {
-//     ReadBaton* data = static_cast<ReadBaton*>(req->data);
+void NodeFtdi::ReadData(uv_work_t* req)
+{
+    ReadBaton* data = static_cast<ReadBaton*>(req->data);
 
-//     FT_STATUS ftStatus;
-//     DWORD RxBytes;
-//     DWORD BytesReceived;
+    FT_STATUS ftStatus;
+    DWORD RxBytes;
+    DWORD BytesReceived;
 
-//     printf("Waiting for data\r\n");
+    printf("Waiting for data\r\n");
     
-//     pthread_mutex_lock(&(data->eh).eMutex);
-//     pthread_cond_wait(&(data->eh).eCondVar, &(data->eh).eMutex);
-//     pthread_mutex_unlock(&(data->eh).eMutex);
+    pthread_mutex_lock(&(data->eh).eMutex);
+    pthread_cond_wait(&(data->eh).eCondVar, &(data->eh).eMutex);
+    pthread_mutex_unlock(&(data->eh).eMutex);
 
-//     FT_GetQueueStatus(data->ftHandle, &RxBytes);
-//     printf("Status [RX: %d]\r\n", RxBytes);
+    FT_GetQueueStatus(data->ftHandle, &RxBytes);
+    printf("Status [RX: %d]\r\n", RxBytes);
 
-//     if(RxBytes > 0)
-//     {
-//         data->readData = (uint8_t *)malloc(RxBytes);
+    if(RxBytes > 0)
+    {
+        data->readData = (uint8_t *)malloc(RxBytes);
 
-//         ftStatus = FT_Read(data->ftHandle, data->readData, RxBytes, &BytesReceived);
-//         if (ftStatus != FT_OK) 
-//         {
-//             fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
-//         }
-//         data->bufferLength = BytesReceived;
-//     }
-// }
+        ftStatus = FT_Read(data->ftHandle, data->readData, RxBytes, &BytesReceived);
+        if (ftStatus != FT_OK) 
+        {
+            fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+        }
+        data->bufferLength = BytesReceived;
+    }
+}
 
 void NodeFtdi::ReadCallback(uv_work_t* req)
 {

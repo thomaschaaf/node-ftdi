@@ -1,41 +1,140 @@
-# Node-ftdi
+<pre>
+  eeeee eeeee eeeee eeee       e  eeeee 
+  8   8 8  88 8   8 8          8  8   " 
+  8e  8 8   8 8e  8 8eee       8e 8eeee 
+  88  8 8   8 88  8 88      e  88    88 
+  88  8 8eee8 88ee8 88ee 88 8ee88 8ee88
 
-FTDI Bindings for Node.js
+  eeee eeeee eeeee e  
+  8      8   8   8 8  
+  8eee   8e  8e  8 8e 
+  88     88  88  8 88 
+  88     88  88ee8 88 
+</pre>
 
-# API
+# Introduction
 
-## Constructor
+[![Build Status](https://secure.travis-ci.org/KABA-CCEAC/node-ftdi.png)](http://travis-ci.org/KABA-CCEAC/node-ftdi)
 
-`self` **Ftdi(obj)**
+This module helps you to represent a device and its protocol.
 
-``` js
-// Example for USB RLY08
-var ftdi = new Ftdi({
-    'vendorID': 0x0403,
-    'productID': 0x6001,
-    'description': 'FT232R USB UART'
-    'serial': 'A700ethE'
-    'index': 0
+# Installing
+
+## Prerequisites:
+
+Install the driver: [ftdi](http://www.ftdichip.com/Drivers/D2XX.htm)
+
+If you're are using a Linux distribution or Mac OS X you can run the script file...
+
+
+    npm install devicestack
+
+This assumes you have everything on your system necessary to compile ANY native module for Node.js. This may not be the case, though, so please ensure the following are true for your system before filing an issue about "Does not install". For all operatings systems, please ensure you have Python 2.x installed AND not 3.0, [node-gyp](https://github.com/TooTallNate/node-gyp) (what we use to compile) requires Python 2.x.
+
+### Windows:
+
+Ensure you have Visual Studio 2010 installed. If you have any version OTHER THAN VS 2010, please read this: https://github.com/TooTallNate/node-gyp/issues/44 
+
+### Mac OS X:
+
+Ensure that you have at a minimum the xCode Command Line Tools installed appropriate for your system configuration. If you recently upgrade OS, it probably removed your installation of Command Line Tools, please verify before submitting a ticket.
+
+### Linux:
+
+You know what you need for you system, basically your appropriate analog of build-essential. Keep rocking!
+
+
+# Usage
+
+## Listing or finding devices
+
+```nodejs
+var ftdi = require('ftdi');
+
+ftdi.find(function(err, devices) {});                 // returns all ftdi devices
+
+ftdi.find(0x27f4, function(err, devices) {});         // returns all ftdi devices
+                                                      // with matching vendor id
+
+ftdi.find(0x27f4, 0x0203, function(err, devices) {}); // returns all ftdi devices with
+                                                      // matching vendor and product id
+```
+
+## Create an FtdiDevice
+
+```nodejs
+var ftdi = require('ftdi');
+
+var device = new ftdi.FtdiPort(serialnumber, locationId);
+// or
+var device = new ftdi.FtdiSerialPort(portName, {
+  baudrate: 115200,
+  databits: 8,
+  stopbits: 1,
+  parity: 'none'
 });
 ```
 
-Note: Somehow description makes open() fail
+## All together
 
-## Instance methods
+```nodejs
+var ftdi = require('ftdi');
 
-`void` **ftdi.open()**
+ftdi.find(0x27f4, 0x0203, function(err, devices) {
+  var device = devices[0];
+  // or
+  // var device = new ftdi.FtdiPort(serialnumber, locationId);
+  // or
+  // var device = new ftdi.FtdiSerialPort(portName, {
+  //   baudrate: 115200,
+  //   databits: 8,
+  //   stopbits: 1,
+  //   parity: 'none'
+  // });
 
-`self` **ftdi.setBaudrate(int)**
+  device.on('error', function(err) {
+  });
 
-`self` **ftdi.setLineProperty(int, int, int)**
+  device.open(function(err) {
 
-`self` **ftdi.setBitmode(int, int)**
+    device.on('data', function(data) {
 
-`int` **ftdi.write(char)**
+    });
 
-`void` **ftdi.close()**
+    device.write([0x01, 0x02, 0x03, 0x04, 0x05], function(err) {
+
+    });
+
+  });
+
+});
+```
+
+# Release Notes
+
+## v0.1.0
+
+- first release
 
 
-## Class methods
+# License
 
-`Array` **Ftdi.findAll([vid [,pid]])**
+Copyright (c) 2013 Kaba AG
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

@@ -25,20 +25,27 @@ function FtdiDevice(settings) {
 
 	this.deviceSettings = settings;
 
-	// this.FTDIDevice = new FTDIDevice(settings);
+	this.FTDIDevice = new FTDIDevice(settings);
 }
 
 util.inherits(FtdiDevice, Duplex);
 
 FtdiDevice.prototype.open = function(settings, callback) {
-
+	var self = this;
+	this.connectionSettings = settings;
+	this.FTDIDevice.registerDataCallback(function(data) {
+		self.emit('data', data);
+	});
+	this.FTDIDevice.open(this.deviceSettings.serial, this.connectionSettings);
+	callback();
 };
 
 FtdiDevice.prototype.write = function(data, callback) {
 	if (!Buffer.isBuffer(data)) {
     data = new Buffer(data);
   }
-
+	this.FTDIDevice.write(data);
+	callback();
 };
 
 FtdiDevice.prototype.close = function(callback) {

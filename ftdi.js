@@ -1,5 +1,5 @@
-var FTDIDriver = require('bindings')('node-ftdi.node').FtdiDriver;
-var FTDIDevice = require('bindings')('node-ftdi.node').FtdiDevice;
+var FTDIDriver = require('bindings')('ftdi.node').FtdiDriver;
+var FTDIDevice = require('bindings')('ftdi.node').FtdiDevice;
 
 var ftdiBinding;
 var sys = require('sys'),

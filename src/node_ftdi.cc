@@ -287,8 +287,12 @@ Handle<Value> NodeFtdi::RegisterDataCallback(const Arguments& args)
     return scope.Close(v8::Undefined());
 }
 
-extern "C" void init (Handle<Object> target) 
-{
+extern "C" {
+  void init (v8::Handle<v8::Object> target) 
+  {
     InitializeList(target);
     NodeFtdi::Initialize(target);
+  }
 }
+
+NODE_MODULE(ftdi, init);

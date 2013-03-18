@@ -64,7 +64,7 @@ module.exports = {
 			lookupVidPid.push({ vid: vid, pid: pid });
 		}
 
-		FTDIDriver.findAll(function(status, devs) { console.log(arguments);
+		FTDIDriver.findAll(function(status, devs) {
 			var devices = [];
 
 			for (var i = 0, len = devs.length; i < len; i++) {

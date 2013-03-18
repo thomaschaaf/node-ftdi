@@ -11,7 +11,7 @@ static uv_mutex_t listMutex;
 
 void Platform_SetVidPid(DWORD vid, DWORD pid);
 
-static struct DeviceListBaton
+struct DeviceListBaton
 {
     Persistent<Value> callback;
     FT_DEVICE_LIST_INFO_NODE *devInfo;

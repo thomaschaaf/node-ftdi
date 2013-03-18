@@ -306,8 +306,6 @@ Handle<Value> NodeFtdi::RegisterDataCallback(const Arguments& args)
 
 FT_STATUS PrepareAsyncRead(ReadBaton *baton)
 {
-    FT_STATUS ftStatus;
-
     pthread_mutex_init(&(baton->eh).eMutex, NULL);
     pthread_cond_init(&(baton->eh).eCondVar, NULL);
     return FT_SetEventNotification(baton->ftHandle, EVENT_MASK, (PVOID)&(baton->eh));
@@ -323,8 +321,6 @@ void WaitForReadEvent(ReadBaton *data)
 #else
 FT_STATUS PrepareAsyncRead(ReadBaton *baton)
 {    
-    FT_STATUS ftStatus;
-    
     baton->hEvent = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
     return FT_SetEventNotification(baton->ftHandle, EVENT_MASK, baton->hEvent);
 }

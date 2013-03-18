@@ -1,12 +1,15 @@
 #include <stdlib.h>
 
 #include "ftdi_driver.h"
-#include "node_ftdi_platform.h"
+
+#include <ftd2xx.h>
 
 using namespace v8;
 using namespace node;
 
 static uv_mutex_t listMutex;
+
+void Platform_SetVidPid(DWORD vid, DWORD pid);
 
 static struct DeviceListBaton
 {
@@ -132,3 +135,19 @@ Handle<Value> FindAll(const Arguments& args)
     return scope.Close(v8::Undefined());
 }
 
+
+/**
+ * Linux / Mac Functions
+ */
+#ifndef WIN32
+void Platform_SetVidPid(DWORD vid, DWORD pid)
+{
+    FT_SetVIDPID(vid, pid);
+}
+
+#else
+void Platform_SetVidPid(DWORD vid, DWORD pid)
+{
+    // Not needed on Windows
+}
+#endif

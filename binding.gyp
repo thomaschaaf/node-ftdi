@@ -4,8 +4,7 @@
       'target_name': 'ftdi',
       'sources': [
         'src/node_ftdi.cc',
-	      'src/ftdi_driver.cc',
-        'src/node_ftdi_platform.cc',
+	      'src/ftdi_driver.cc'
       ],
       'include_dirs+': [
         'src/',

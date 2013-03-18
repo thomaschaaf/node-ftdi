@@ -12,12 +12,6 @@
   88     88  88ee8 88 
 </pre>
 
-# Introduction
-
-[![Build Status](https://secure.travis-ci.org/KABA-CCEAC/node-ftdi.png)](http://travis-ci.org/KABA-CCEAC/node-ftdi)
-
-This module helps you to represent a device and its protocol.
-
 # Installing
 
 ## Prerequisites:

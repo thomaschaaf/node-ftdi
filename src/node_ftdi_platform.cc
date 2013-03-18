@@ -1,17 +1,38 @@
-#include <uv.h>
 #include <stdlib.h>
 #include <stdio.h>
-
-#include "node_ftdi_platform.h"
+#include <uv.h>
 
 #ifndef WIN32
 #include <pthread.h>
-
 #else
-
 #endif
 
+#include "node_ftdi_platform.h"
+
+
+
+#define EVENT_MASK (FT_EVENT_RXCHAR)
+
+
+/**
+ * Linux / Mac Functions
+ */
 #ifndef WIN32
+
+void Platform_SetVidPid(DWORD vid, DWORD pid)
+{
+    FT_SetVIDPID(vid, pid);
+}
+
+void PrepareAsyncRead(ReadBaton *baton)
+{
+    FT_STATUS ftStatus;
+
+    pthread_mutex_init(&(baton->eh).eMutex, NULL);
+    pthread_cond_init(&(baton->eh).eCondVar, NULL);
+    ftStatus = FT_SetEventNotification(baton->ftHandle, EVENT_MASK, (PVOID)&(baton->eh));
+}
+
 void ReadDataAsync(uv_work_t* req)
 {
     ReadBaton* data = static_cast<ReadBaton*>(req->data);
@@ -41,8 +62,22 @@ void ReadDataAsync(uv_work_t* req)
         data->bufferLength = BytesReceived;
     }
 }
+
 #else
-oid ReadDataAsync(uv_work_t* req)
+void Platform_SetVidPid(DWORD vid, DWORD pid)
+{
+    // Not supported on Windows
+}
+
+void PrepareAsyncRead(ReadBaton *baton)
+{    
+    FT_STATUS ftStatus;
+    
+    baton->hEvent = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
+    ftStatus = FT_SetEventNotification(baton->ftHandle, EVENT_MASK, baton->hEvent);
+}
+
+void ReadDataAsync(uv_work_t* req)
 {
 
 }

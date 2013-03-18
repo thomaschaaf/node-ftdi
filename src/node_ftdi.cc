@@ -2,13 +2,16 @@
 #include <stdlib.h>
 #include <iostream>
 #include <sstream>
-#include <unistd.h>
 #include <string.h>
 #include <queue>
 
 #include "node_ftdi.h"
 #include "node_ftdi_platform.h"
 #include "ftdi_driver.h"
+
+#ifndef WIN32
+#include <unistd.h>
+#endif
 
 using namespace std;
 using namespace v8;
@@ -32,37 +35,6 @@ Handle<Value> NodeFtdi::ThrowLastError(std::string message)
 
     return ThrowException(Exception::Error(msg));
 }
-
-
-// void NodeFtdi::ReadData(uv_work_t* req)
-// {
-//     ReadBaton* data = static_cast<ReadBaton*>(req->data);
-
-//     FT_STATUS ftStatus;
-//     DWORD RxBytes;
-//     DWORD BytesReceived;
-
-//     printf("Waiting for data\r\n");
-    
-//     pthread_mutex_lock(&(data->eh).eMutex);
-//     pthread_cond_wait(&(data->eh).eCondVar, &(data->eh).eMutex);
-//     pthread_mutex_unlock(&(data->eh).eMutex);
-
-//     FT_GetQueueStatus(data->ftHandle, &RxBytes);
-//     printf("Status [RX: %d]\r\n", RxBytes);
-
-//     if(RxBytes > 0)
-//     {
-//         data->readData = (uint8_t *)malloc(RxBytes);
-
-//         ftStatus = FT_Read(data->ftHandle, data->readData, RxBytes, &BytesReceived);
-//         if (ftStatus != FT_OK) 
-//         {
-//             fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
-//         }
-//         data->bufferLength = BytesReceived;
-//     }
-// }
 
 void NodeFtdi::ReadCallback(uv_work_t* req)
 {
@@ -141,7 +113,8 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
 
     printf("Create New FTDI Object\r\n");
 
-    if(args[0]->IsObject()) {
+    if(args[0]->IsObject()) 
+    {
         Local<Object> obj = args[0]->ToObject();
 
         if(obj->Has(vid)) {
@@ -161,9 +134,6 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
         }
     }
 
-    printf("VID: %x, PID: %x\r\n", object->p.vid, object->p.pid);
-    FT_SetVIDPID (object->p.vid, object->p.pid);
-
     object->Wrap(args.This());
 
     return args.This();
@@ -173,7 +143,6 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
 Handle<Value> NodeFtdi::Open(const Arguments& args) 
 {
     HandleScope scope;
-    DWORD EventMask;
     FT_STATUS ftStatus;
 
     // Get Object
@@ -205,10 +174,8 @@ Handle<Value> NodeFtdi::Open(const Arguments& args)
     ReadBaton* baton = new ReadBaton();
     baton->ftHandle = obj->ftHandle;
     baton->callback = obj->dataCallback;
-    pthread_mutex_init(&(baton->eh).eMutex, NULL);
-    pthread_cond_init(&(baton->eh).eCondVar, NULL);
-    EventMask = FT_EVENT_RXCHAR;
-    ftStatus = FT_SetEventNotification(obj->ftHandle, EventMask, (PVOID)&(baton->eh));
+
+    PrepareAsyncRead(baton);
 
     uv_work_t* req = new uv_work_t();
     req->data = baton;

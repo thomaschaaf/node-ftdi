@@ -1,13 +1,14 @@
-#include "ftdi_driver.h"
 #include <stdlib.h>
+
+#include "ftdi_driver.h"
+#include "node_ftdi_platform.h"
 
 using namespace v8;
 using namespace node;
 
-Persistent<FunctionTemplate> constructor_template;
-uv_mutex_t listMutex;
+static uv_mutex_t listMutex;
 
-struct DeviceListBaton
+static struct DeviceListBaton
 {
     Persistent<Value> callback;
     FT_DEVICE_LIST_INFO_NODE *devInfo;
@@ -17,6 +18,7 @@ struct DeviceListBaton
 
 void InitializeList(Handle<Object> target) 
 {
+    Persistent<FunctionTemplate> constructor_template;
     Local<FunctionTemplate> t = FunctionTemplate::New();
     constructor_template = Persistent<FunctionTemplate>::New(t);
     constructor_template->SetClassName(String::NewSymbol("FtdiDriver"));
@@ -44,7 +46,7 @@ Handle<Value> SetVidPid(const Arguments& args)
     int pid = (int) args[1]->NumberValue();
 
     printf("Set [Vid: %x, Pid: %x]\r\n", vid, pid);
-    FT_SetVIDPID(vid, pid);
+    Platform_SetVidPid(vid, pid);
 
    return scope.Close(v8::Undefined());
 }

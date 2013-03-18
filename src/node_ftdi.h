@@ -1,5 +1,5 @@
-#ifndef NODEFTDI_H
-#define NODEFTDI_H
+#ifndef NODE_FTDI_H
+#define NODE_FTDI_H
 
 #include <v8.h>
 #include <node.h>

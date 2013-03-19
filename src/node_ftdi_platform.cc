@@ -4,7 +4,6 @@
 
 #ifndef WIN32
 #include <pthread.h>
-#else
 #endif
 
 #include "node_ftdi_platform.h"
@@ -66,7 +65,7 @@ void ReadDataAsync(uv_work_t* req)
 #else
 void Platform_SetVidPid(DWORD vid, DWORD pid)
 {
-    // Not supported on Windows
+    // Not needed on Windows
 }
 
 void PrepareAsyncRead(ReadBaton *baton)

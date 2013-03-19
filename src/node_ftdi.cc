@@ -6,17 +6,39 @@
 #include <queue>
 
 #include "node_ftdi.h"
-#include "node_ftdi_platform.h"
 #include "ftdi_driver.h"
+#include <node_buffer.h>
+
 
 #ifndef WIN32
 #include <unistd.h>
 #endif
 
+#define EVENT_MASK (FT_EVENT_RXCHAR)
+
 using namespace std;
 using namespace v8;
 using namespace node;
 using namespace node_ftdi;
+
+
+struct ReadBaton 
+{
+  FT_HANDLE ftHandle;
+#ifndef WIN32
+  EVENT_HANDLE eh;
+#else
+  HANDLE hEvent;
+#endif
+  uint8_t* readData;
+  int32_t bufferLength;
+  Persistent<Value> callback;
+  int result;
+};
+
+
+FT_STATUS PrepareAsyncRead(ReadBaton *baton);
+void WaitForReadEvent(ReadBaton *data);
 
 
 const char* ToCString(Local<String> val) 
@@ -36,42 +58,6 @@ Handle<Value> NodeFtdi::ThrowLastError(std::string message)
     return ThrowException(Exception::Error(msg));
 }
 
-void NodeFtdi::ReadCallback(uv_work_t* req)
-{
-    HandleScope scope;
-    ReadBaton* data = static_cast<ReadBaton*>(req->data);
-
-    printf("ReadCallback\r\n");
-
-    if(data->callback->IsFunction())
-    {
-        Handle<Value> argv[1];
-        // Local<Object> array = Object::New();
-        // array->SetIndexedPropertiesToExternalArrayData(data->readData, kExternalUnsignedByteArray, data->bufferLength);
-        // argv[0] = array;
-
-
-        Buffer *slowBuffer = node::Buffer::New(data->bufferLength);
-        memcpy(Buffer::Data(slowBuffer), data->readData, data->bufferLength);
-        Local<Object> globalObj = Context::GetCurrent()->Global();
-
-        Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
-        Handle<Value> constructorArgs[3] = { slowBuffer->handle_, Integer::New(data->bufferLength), Integer::New(0) };
-        Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
-        argv[0] = actualBuffer;
-
-        Function::Cast(*data->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
-
-    }
-    else
-    {
-        printf("Could not call dataCb\r\n");
-    }
-
-    free(data->readData);
-
-    uv_queue_work(uv_default_loop(), req, ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
-}
 
 NodeFtdi::NodeFtdi() {};
 NodeFtdi::~NodeFtdi() {};
@@ -139,6 +125,65 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     return args.This();
 }
 
+void ReadDataAsync(uv_work_t* req)
+{
+    ReadBaton* data = static_cast<ReadBaton*>(req->data);
+
+    FT_STATUS ftStatus;
+    DWORD RxBytes;
+    DWORD BytesReceived;
+
+    printf("Waiting for data\r\n");
+    WaitForReadEvent(data);
+
+    FT_GetQueueStatus(data->ftHandle, &RxBytes);
+    printf("Status [RX: %d]\r\n", RxBytes);
+
+    if(RxBytes > 0)
+    {
+        data->readData = (uint8_t *)malloc(RxBytes);
+
+        ftStatus = FT_Read(data->ftHandle, data->readData, RxBytes, &BytesReceived);
+        if (ftStatus != FT_OK) 
+        {
+            fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+        }
+        data->bufferLength = BytesReceived;
+    }
+}
+
+void NodeFtdi::ReadCallback(uv_work_t* req)
+{
+    HandleScope scope;
+    ReadBaton* data = static_cast<ReadBaton*>(req->data);
+
+    printf("ReadCallback\r\n");
+
+    if(data->callback->IsFunction())
+    {
+        Handle<Value> argv[1];
+
+        Buffer *slowBuffer = Buffer::New(data->bufferLength);
+        memcpy(Buffer::Data(slowBuffer), data->readData, data->bufferLength);
+        Local<Object> globalObj = Context::GetCurrent()->Global();
+
+        Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
+        Handle<Value> constructorArgs[3] = { slowBuffer->handle_, Integer::New(data->bufferLength), Integer::New(0) };
+        Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
+        argv[0] = actualBuffer;
+
+        Function::Cast(*data->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+
+    }
+    else
+    {
+        printf("Could not call dataCb\r\n");
+    }
+
+    free(data->readData);
+
+    uv_queue_work(uv_default_loop(), req, ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
+}
 
 Handle<Value> NodeFtdi::Open(const Arguments& args) 
 {
@@ -220,7 +265,7 @@ Handle<Value> NodeFtdi::Write(const Arguments& args)
     }
     Persistent<Object> buffer = Persistent<Object>::New(args[0]->ToObject());
     char* bufferData = Buffer::Data(buffer);
-    DWORD bufferLength = Buffer::Length(buffer);
+    DWORD bufferLength = (DWORD)Buffer::Length(buffer);
 
     ftStatus = FT_Write(obj->ftHandle, bufferData, bufferLength, &BytesWritten);
     if (ftStatus != FT_OK) 
@@ -254,6 +299,38 @@ Handle<Value> NodeFtdi::RegisterDataCallback(const Arguments& args)
     return scope.Close(v8::Undefined());
 }
 
+/**
+ * Linux / Mac Functions
+ */
+#ifndef WIN32
+
+FT_STATUS PrepareAsyncRead(ReadBaton *baton)
+{
+    pthread_mutex_init(&(baton->eh).eMutex, NULL);
+    pthread_cond_init(&(baton->eh).eCondVar, NULL);
+    return FT_SetEventNotification(baton->ftHandle, EVENT_MASK, (PVOID)&(baton->eh));
+}
+
+void WaitForReadEvent(ReadBaton *data)
+{
+    pthread_mutex_lock(&(data->eh).eMutex);
+    pthread_cond_wait(&(data->eh).eCondVar, &(data->eh).eMutex);
+    pthread_mutex_unlock(&(data->eh).eMutex);
+}
+
+#else
+FT_STATUS PrepareAsyncRead(ReadBaton *baton)
+{    
+    baton->hEvent = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
+    return FT_SetEventNotification(baton->ftHandle, EVENT_MASK, baton->hEvent);
+}
+
+void WaitForReadEvent(ReadBaton *data)
+{
+    WaitForSingleObject(data->hEvent, INFINITE);
+}
+#endif
+
 extern "C" {
   void init (v8::Handle<v8::Object> target) 
   {
@@ -262,4 +339,4 @@ extern "C" {
   }
 }
 
-NODE_MODULE(ftdi, init);
+NODE_MODULE(ftdi, init)

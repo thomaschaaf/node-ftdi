@@ -4,7 +4,6 @@
 #include <v8.h>
 #include <node.h>
 #include <ftd2xx.h>
-#include <node_buffer.h>
 
 using namespace v8;
 using namespace node;

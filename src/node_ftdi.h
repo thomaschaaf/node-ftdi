@@ -8,40 +8,74 @@
 using namespace v8;
 using namespace node;
 
-#define FTDI_VID    0x0403
-#define FTDI_PID    0x6001
-
 namespace node_ftdi 
 {
 
-struct params 
+typedef enum 
 {
-    int vid;
-    int pid;
-    const char* description;
-    const char* serial;
-    unsigned int index;
-};
+    ConnectType_ByIndex,
+    ConnectType_BySerial,
+    ConnectType_ByDescription,
+    ConnectType_ByLocationId,
+} ConnectType_t;
+
+typedef enum 
+{
+    BatonType_Read,
+    BatonType_Open,
+} BatonType_t;
+
+typedef struct 
+{
+    ConnectType_t connectType;
+    const char *connectString;
+    int32_t connectId;
+} ConnectionParams_t;
+
+typedef struct 
+{
+    int baudRate;
+    UCHAR wordLength;
+    UCHAR stopBits;
+    UCHAR parity;
+} DeviceParams_t;
+
+typedef struct 
+{
+    Persistent<Value> callback; 
+    FT_STATUS status;
+} OpenBaton_t;
+
+typedef struct  
+{
+#ifndef WIN32
+    EVENT_HANDLE eh;
+#else
+    HANDLE hEvent;
+#endif
+    uint8_t* readData;
+    int32_t bufferLength;
+    Persistent<Value> callback;
+    FT_STATUS status;
+} ReadBaton_t;
 
 class NodeFtdi : public ObjectWrap 
 {
     public:
         static void Initialize(Handle<Object> target);
-        // static Handle<Value> FindAll(const Arguments& args);
-    protected:
+        
+        void ReadDataAsync();
+        FT_STATUS OpenDevice();
+        FT_STATUS SetDeviceSettings();
+        void SetBatonStatus(BatonType_t baton, FT_STATUS status);
 
+    protected:
         NodeFtdi();
         ~NodeFtdi();
-
-        // static Handle<Value> SetBaudrate(const Arguments& args);
-        // static Handle<Value> SetLineProperty(const Arguments& args);
-        // static Handle<Value> SetBitmode(const Arguments& args);
 
         static Handle<Value> New(const Arguments& args);
         static Handle<Value> Open(const Arguments& args);
         static Handle<Value> Write(const Arguments& args);
-        // static Handle<Value> Read(const Arguments& args);
-        // static Handle<Value> Close(const Arguments& args);
 
         static Handle<Value> ThrowTypeError(std::string message);
         static Handle<Value> ThrowLastError(std::string message);
@@ -49,14 +83,19 @@ class NodeFtdi : public ObjectWrap
         static Handle<Value> RegisterDataCallback(const Arguments& args);
 
     private:
+        static void ReadCallback(uv_work_t* req);
+        static void OpenFinished(uv_work_t* req);
+        
+        void ExtractDeviceSettings(Local<v8::Object> options);
+
         static Persistent<Object> module_handle;
         static Persistent<String> callback_symbol;
-        static void ReadCallback(uv_work_t* req);
-        void SetDeviceSettings(Local<v8::Object> options);
 
-        Persistent<Value> dataCallback;
         FT_HANDLE ftHandle;
-        struct params p;
+        DeviceParams_t deviceParams;
+        ConnectionParams_t connectParams;
+        ReadBaton_t readBaton;
+        OpenBaton_t openBaton;
 };
 
 }

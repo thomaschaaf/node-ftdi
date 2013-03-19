@@ -1,15 +1,14 @@
 #include <stdlib.h>
+#include <ftd2xx.h>
 
 #include "ftdi_driver.h"
-
-#include <ftd2xx.h>
+#include "ftdi_constants.h"
 
 using namespace v8;
 using namespace node;
 
 static uv_mutex_t listMutex;
 
-void Platform_SetVidPid(DWORD vid, DWORD pid);
 
 struct DeviceListBaton
 {
@@ -17,6 +16,8 @@ struct DeviceListBaton
     FT_DEVICE_LIST_INFO_NODE *devInfo;
     DWORD listLength;
     FT_STATUS status;
+    int vid;
+    int pid;
 };
 
 void InitializeList(Handle<Object> target) 
@@ -30,28 +31,9 @@ void InitializeList(Handle<Object> target)
     // NODE_SET_PROTOTYPE_METHOD(constructor_template, "open", Open);
 
     NODE_SET_METHOD(constructor_template, "findAll", FindAll);
-    NODE_SET_METHOD(constructor_template, "setVidPid", SetVidPid);
     target->Set(String::NewSymbol("FtdiDriver"), constructor_template->GetFunction());
 
     uv_mutex_init(&listMutex);
-}
-
-Handle<Value> SetVidPid(const Arguments& args) 
-{
-    HandleScope scope;
-
-    if (args.Length() != 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) 
-    {
-        ThrowException(Exception::TypeError(String::New("SetVidPid() expects two number arguments")));
-    }
-
-    int vid = (int) args[0]->NumberValue();
-    int pid = (int) args[1]->NumberValue();
-
-    printf("Set [Vid: %x, Pid: %x]\r\n", vid, pid);
-    Platform_SetVidPid(vid, pid);
-
-   return scope.Close(v8::Undefined());
 }
 
 void FindAllAsync(uv_work_t* req)
@@ -64,6 +46,14 @@ void FindAllAsync(uv_work_t* req)
 
     // create the device information list
     uv_mutex_lock(&listMutex);
+
+#ifndef WIN32
+    if(listBaton->vid != 0 && listBaton->pid != 0)
+    {
+        FT_SetVIDPID(listBaton->vid, listBaton->pid);
+    }
+#endif
+
     ftStatus = FT_CreateDeviceInfoList(&numDevs);
     if (ftStatus == FT_OK) 
     {
@@ -96,11 +86,11 @@ void FindAllFinished(uv_work_t* req)
         for (DWORD i = 0; i < listBaton->listLength; i++) 
         {
             Local<Object> obj = Object::New();
-            obj->Set(String::New("description"), String::New(listBaton->devInfo[i].Description));
-            obj->Set(String::New("serial"), String::New(listBaton->devInfo[i].SerialNumber));
-            obj->Set(String::New("locationId"), Number::New(listBaton->devInfo[i].LocId));
-            obj->Set(String::New("vendorId"), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
-            obj->Set(String::New("productId"), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
+            obj->Set(String::New(DEVICE_DESCRIPTION_TAG), String::New(listBaton->devInfo[i].Description));
+            obj->Set(String::New(DEVICE_SERIAL_NR_TAG), String::New(listBaton->devInfo[i].SerialNumber));
+            obj->Set(String::New(DEVICE_LOCATION_ID_TAG), Number::New(listBaton->devInfo[i].LocId));
+            obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
+            obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
             array->Set(i, obj);
         }
 
@@ -118,15 +108,30 @@ Handle<Value> FindAll(const Arguments& args)
 {
     HandleScope scope;
 
-    // callback
-    if(!args[0]->IsFunction()) 
+    int vid = 0;
+    int pid = 0;
+
+    if (args.Length() != 3) 
     {
-        return scope.Close(v8::ThrowException(v8::Exception::TypeError(v8::String::New("First argument must be a function"))));
+        ThrowException(Exception::TypeError(String::New("Wrong number of Arguments")));
     }
-    Local<Value> callback = args[0];
+    if (args[0]->IsNumber() && args[1]->IsNumber()) 
+    {
+        vid = (int) args[0]->NumberValue();
+        pid = (int) args[1]->NumberValue();
+    }
+
+    // callback
+    if(!args[2]->IsFunction()) 
+    {
+        return scope.Close(v8::ThrowException(v8::Exception::TypeError(v8::String::New("Third argument must be a function"))));
+    }
+    Local<Value> callback = args[2];
 
     DeviceListBaton* listBaton = new DeviceListBaton();
     listBaton->callback = Persistent<Value>::New(callback);
+    listBaton->vid = vid;
+    listBaton->pid = pid;
 
     uv_work_t* req = new uv_work_t();
     req->data = listBaton;
@@ -134,20 +139,3 @@ Handle<Value> FindAll(const Arguments& args)
 
     return scope.Close(v8::Undefined());
 }
-
-
-/**
- * Linux / Mac Functions
- */
-#ifndef WIN32
-void Platform_SetVidPid(DWORD vid, DWORD pid)
-{
-    FT_SetVIDPID(vid, pid);
-}
-
-#else
-void Platform_SetVidPid(DWORD vid, DWORD pid)
-{
-    // Not needed on Windows
-}
-#endif

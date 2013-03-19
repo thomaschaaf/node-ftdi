@@ -3,18 +3,8 @@ var util = require('util'),
     // Duplex = require('stream').Duplex,
     ftdi = require('bindings')('ftdi.node'),
 		FTDIDriver = ftdi.FtdiDriver,
-    FTDIDevice = ftdi.FtdiDevice,
-    lookupVidPid = [];
+    FTDIDevice = ftdi.FtdiDevice;
 
-function hasToSet(vid, pid) {
-	for (var i = 0, len = lookupVidPid.length; i < len; i++) {
-		var pair = lookupVidPid[i];
-		if (pair.vid === vid && pair.pid === pid) {
-			return false;
-		}
-	}
-	return true;
-}
 
 function FtdiDevice(settings) {
 	if (typeof(settings) === 'number') {
@@ -33,11 +23,9 @@ util.inherits(FtdiDevice, Duplex);
 FtdiDevice.prototype.open = function(settings, callback) {
 	var self = this;
 	this.connectionSettings = settings;
-	this.FTDIDevice.registerDataCallback(function(data) {
+	this.FTDIDevice.open(this.connectionSettings, function(data) {
 		self.emit('data', data);
-	});
-	this.FTDIDevice.open(this.deviceSettings.serial, this.connectionSettings);
-	callback();
+	}, callback);
 };
 
 FtdiDevice.prototype.write = function(data, callback) {
@@ -66,12 +54,7 @@ module.exports = {
 			pid = null;
 		}
 
-		if (vid && pid && hasToSet(vid, pid)) {
-			FTDIDriver.setVidPid(vid, pid);
-			lookupVidPid.push({ vid: vid, pid: pid });
-		}
-
-		FTDIDriver.findAll(function(status, devs) {
+		FTDIDriver.findAll(vid, pid, function(status, devs) {
 			var devices = [];
 
 			for (var i = 0, len = devs.length; i < len; i++) {

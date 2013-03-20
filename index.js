@@ -5,7 +5,6 @@ var util = require('util'),
 		FTDIDriver = ftdi.FtdiDriver,
     FTDIDevice = ftdi.FtdiDevice;
 
-
 function FtdiDevice(settings) {
 	if (typeof(settings) === 'number') {
 		settings = { index: settings };
@@ -33,7 +32,7 @@ FtdiDevice.prototype.write = function(data, callback) {
     data = new Buffer(data);
   }
 	this.FTDIDevice.write(data);
-	callback();
+	if (callback) callback();
 };
 
 FtdiDevice.prototype.close = function(callback) {

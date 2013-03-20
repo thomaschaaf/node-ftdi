@@ -55,11 +55,18 @@ typedef struct
 
 typedef struct  
 {
+    FT_HANDLE ftHandle;
     uint8_t* data;
     DWORD length;
     Persistent<Value> callback;
     FT_STATUS status;
 } WriteBaton_t;
+
+typedef struct  
+{
+    Persistent<Value> callback;
+    FT_STATUS status;
+} CloseBaton_t;
 
 class NodeFtdi : public ObjectWrap 
 {
@@ -99,7 +106,7 @@ class NodeFtdi : public ObjectWrap
 
         ReadBaton_t readBaton;
         OpenBaton_t openBaton;
-        WriteBaton_t writeBaton;
+        CloseBaton_t closeBaton;
 };
 
 }

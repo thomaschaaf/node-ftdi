@@ -39,6 +39,12 @@ UCHAR GetParity(const char* string);
 void ToCString(Local<String> val, char ** ptr);
 
 
+/**********************************
+ * Local Variables
+ **********************************/
+static uv_mutex_t writeMutex;
+
+
 /*****************************
  * CREATION Section
  *****************************/
@@ -79,6 +85,8 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target)
 
     Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
     target->Set(String::NewSymbol("FtdiDevice"), constructor);
+
+    uv_mutex_init(&writeMutex);
 }
 
 Handle<Value> NodeFtdi::New(const Arguments& args) 
@@ -344,27 +352,6 @@ Handle<Value> NodeFtdi::Write(const Arguments& args)
 {
     HandleScope scope;
 
-    if (args.Length() != 2) 
-    {
-        return NodeFtdi::ThrowTypeError("write() expects two arguments");
-    }
-
-    // buffer
-    if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
-    {
-        return scope.Close(v8::ThrowException(Exception::TypeError(String::New("First argument must be a buffer"))));
-    }
-
-    // options
-    if(!args[1]->IsFunction()) 
-    {
-        return NodeFtdi::ThrowTypeError("write() expects a function as second argument");
-    }
-    Local<Value> writeCallback = args[1];
-
-    // Get Object
-    NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
-
      // buffer
     if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
     {
@@ -372,13 +359,25 @@ Handle<Value> NodeFtdi::Write(const Arguments& args)
     }
     Local<Object> buffer = Local<Object>::New(args[0]->ToObject());
 
-    obj->writeBaton.length = (DWORD)Buffer::Length(buffer);
-    obj->writeBaton.data = (uint8_t*) malloc(obj->writeBaton.length);
-    memcpy(obj->writeBaton.data, Buffer::Data(buffer), obj->writeBaton.length);
-    obj->writeBaton.callback = Persistent<Value>::New(writeCallback);
+    // Get Object
+    NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+    WriteBaton_t* baton = new WriteBaton_t();
+
+    Local<Value> writeCallback;
+    // options
+    if(args.Length() > 1 && args[1]->IsFunction()) 
+    {
+        writeCallback = args[1];
+        baton->callback = Persistent<Value>::New(writeCallback);
+    }
+
+    baton->length = (DWORD)Buffer::Length(buffer);
+    baton->data = (uint8_t*) malloc(baton->length);
+    memcpy(baton->data, Buffer::Data(buffer), baton->length);
+    baton->ftHandle = obj->ftHandle;
 
     uv_work_t* req = new uv_work_t();
-    req->data = obj;
+    req->data = baton;
     uv_queue_work(uv_default_loop(), req, NodeFtdi::WriteAsync, (uv_after_work_cb)NodeFtdi::WriteFinished);
 
     return scope.Close(v8::Undefined());
@@ -388,30 +387,108 @@ void NodeFtdi::WriteAsync(uv_work_t* req)
 {
     FT_STATUS ftStatus;
     DWORD bytesWritten;
-    NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
+    WriteBaton_t* baton = static_cast<WriteBaton_t*>(req->data);
 
-    ftStatus = FT_Write(object->ftHandle, object->writeBaton.data, object->writeBaton.length, &bytesWritten);
-    printf("%d bytes written\r\n", bytesWritten);
+    uv_mutex_lock(&writeMutex);  
+    ftStatus = FT_Write(baton->ftHandle, baton->data, baton->length, &bytesWritten);
+    uv_mutex_unlock(&writeMutex);  
 
-    object->writeBaton.status = ftStatus;
-    free(object->writeBaton.data);
+    baton->status = ftStatus;
 }
 
 void NodeFtdi::WriteFinished(uv_work_t* req)
 {
-    NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
+    WriteBaton_t* baton = static_cast<WriteBaton_t*>(req->data);
 
-    if(object->writeBaton.callback->IsFunction())
+    if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
     {
         Handle<Value> argv[1];
-        argv[0] = Number::New(object->writeBaton.status);
+        argv[0] = Number::New(baton->status);
 
-        Function::Cast(*object->writeBaton.callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+        Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
     }
 
+    free(baton->data);
+    baton->callback.Dispose();
+    delete baton;
     delete req;
-    object->writeBaton.callback.Dispose();
 }
+
+/*****************************
+ * CLOSE Section
+ *****************************/
+// Handle<Value> NodeFtdi::Close(const Arguments& args) 
+// {
+//     HandleScope scope;
+
+//     if (args.Length() != 2) 
+//     {
+//         return NodeFtdi::ThrowTypeError("write() expects two arguments");
+//     }
+
+//     // buffer
+//     if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
+//     {
+//         return scope.Close(v8::ThrowException(Exception::TypeError(String::New("First argument must be a buffer"))));
+//     }
+
+//     // options
+//     if(!args[1]->IsFunction()) 
+//     {
+//         return NodeFtdi::ThrowTypeError("write() expects a function as second argument");
+//     }
+//     Local<Value> writeCallback = args[1];
+
+//     // Get Object
+//     NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+
+//      // buffer
+//     if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
+//     {
+//         return scope.Close(v8::ThrowException(Exception::TypeError(String::New("First argument must be a buffer"))));
+//     }
+//     Local<Object> buffer = Local<Object>::New(args[0]->ToObject());
+
+//     obj->writeBaton.length = (DWORD)Buffer::Length(buffer);
+//     obj->writeBaton.data = (uint8_t*) malloc(obj->writeBaton.length);
+//     memcpy(obj->writeBaton.data, Buffer::Data(buffer), obj->writeBaton.length);
+//     obj->writeBaton.callback = Persistent<Value>::New(writeCallback);
+
+//     uv_work_t* req = new uv_work_t();
+//     req->data = obj;
+//     uv_queue_work(uv_default_loop(), req, NodeFtdi::WriteAsync, (uv_after_work_cb)NodeFtdi::WriteFinished);
+
+//     return scope.Close(v8::Undefined());
+// }
+
+// void NodeFtdi::CloseAsync(uv_work_t* req)
+// {
+//     FT_STATUS ftStatus;
+//     DWORD bytesWritten;
+//     NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
+
+//     ftStatus = FT_Write(object->ftHandle, object->writeBaton.data, object->writeBaton.length, &bytesWritten);
+//     printf("%d bytes written\r\n", bytesWritten);
+
+//     object->writeBaton.status = ftStatus;
+//     free(object->writeBaton.data);
+// }
+
+// void NodeFtdi::CloseFinished(uv_work_t* req)
+// {
+//     NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
+
+//     if(object->writeBaton.callback->IsFunction())
+//     {
+//         Handle<Value> argv[1];
+//         argv[0] = Number::New(object->writeBaton.status);
+
+//         Function::Cast(*object->writeBaton.callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+//     }
+
+//     delete req;
+//     object->writeBaton.callback.Dispose();
+// }
 
 /*****************************
  * Helper Section

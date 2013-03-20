@@ -268,6 +268,11 @@ FT_STATUS NodeFtdi::OpenDevice()
             }
         }
 
+<<<<<<< HEAD
+=======
+        // printf("Open [Flag: %x, LID: %d]\n", flags, (int)(arg));
+
+>>>>>>> origin/master
         return FT_OpenEx(arg, flags, &ftHandle);
     }
 
@@ -482,7 +487,6 @@ UCHAR GetWordLength(int wordLength)
 
 UCHAR GetStopBits(int stopBits)
 {
-    printf("StopBits: %d\n", stopBits);
     switch(stopBits)
     {
         case 1:
@@ -496,7 +500,6 @@ UCHAR GetStopBits(int stopBits)
 
 UCHAR GetParity(const char* string)
 {
-    printf("Parity: %s , Stlen: %d\n", string, strlen(string));
     if(strcasecmp(CONNECTION_PARITY_NONE, string) == 0)
     {
         return FT_PARITY_NONE;

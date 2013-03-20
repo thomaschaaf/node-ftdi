@@ -1,6 +1,5 @@
 var util = require('util'),
-    Duplex = require('events').EventEmitter,
-    // Duplex = require('stream').Duplex,
+    EventEmitter = require('events').EventEmitter,
     ftdi = require('bindings')('ftdi.node'),
 		FTDIDriver = ftdi.FtdiDriver,
     FTDIDevice = ftdi.FtdiDevice;
@@ -10,14 +9,14 @@ function FtdiDevice(settings) {
 		settings = { index: settings };
 	}
 
-	Duplex.call(this);
+	EventEmitter.call(this);
 
 	this.deviceSettings = settings;
 
 	this.FTDIDevice = new FTDIDevice(settings);
 }
 
-util.inherits(FtdiDevice, Duplex);
+util.inherits(FtdiDevice, EventEmitter);
 
 FtdiDevice.prototype.open = function(settings, callback) {
 	var self = this;

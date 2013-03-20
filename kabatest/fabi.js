@@ -35,14 +35,29 @@ var devices = ftdi.find(0x18d9, 0x01a0, function(status, devices)
 			{
 				console.log('Output:');
 				console.log( data );
+
+				device.close(function(status) {
+					console.log("JS Close Device");
+					device.open(connectionSettings, function(status) 
+					{
+						console.log('openResult: ' + status);
+						device.write(dataToWrite, function(status){console.log('WriteResult: ' + status);});
+					}
+					)
+				});
 			});
 
-			device.open(connectionSettings, function(status) {
+			device.open(connectionSettings, function(status) 
+			{
 				console.log('openResult: ' + status);
-				setInterval(function() 
-				{
-					device.write(dataToWrite, function(status){console.log('WriteResult: ' + status);});
-				}, 2000);});
+				
+				device.write(dataToWrite, function(status){console.log('WriteResult: ' + status);});
+
+				// setInterval(function() 
+				// {
+				// 	device.write(dataToWrite, function(status){console.log('WriteResult: ' + status);});
+				// }, 5000);});
+			});
 		}
 		else
 		{

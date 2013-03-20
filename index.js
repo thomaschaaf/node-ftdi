@@ -47,7 +47,7 @@ FtdiDevice.prototype.write = function(data, callback) {
 };
 
 FtdiDevice.prototype.close = function(callback) {
-
+	this.FTDIDevice.close(callback);
 };
 
 module.exports = {

@@ -11,7 +11,8 @@
 #include "ftdi_driver.h"
 
 #ifndef WIN32
-#include <unistd.h>
+    #include <unistd.h>
+    #include <time.h>
 #endif
 
 using namespace std;
@@ -24,7 +25,7 @@ using namespace node_ftdi;
  * Local defines
  **********************************/
 #define EVENT_MASK (FT_EVENT_RXCHAR)
-
+#define WAIT_TIME_SECONDS       1
 
 /**********************************
  * Local typedefs
@@ -37,11 +38,13 @@ typedef struct
     FT_STATUS status;
 } OpenBaton_t;
 
-typedef struct  
+typedef struct
 {
     NodeFtdi* device;
 #ifndef WIN32
     EVENT_HANDLE eh;
+    struct timespec ts;
+    struct timeval tp;
 #else
     HANDLE hEvent;
 #endif
@@ -60,11 +63,19 @@ typedef struct
     FT_STATUS status;
 } WriteBaton_t;
 
-typedef struct  
+typedef struct CloseBaton_t
 {
     NodeFtdi* device;
     Persistent<Value> callback;
     FT_STATUS status;
+    uv_mutex_t closeMutex;
+
+    CloseBaton_t()
+    {
+        uv_mutex_init(&closeMutex);
+        uv_mutex_lock(&closeMutex);
+    }
+
 } CloseBaton_t;
 
 
@@ -93,8 +104,9 @@ static uv_mutex_t writeMutex;
 
 NodeFtdi::NodeFtdi() 
 {
-
+    isClosing = false;
 };
+
 NodeFtdi::~NodeFtdi() 
 {
     if(connectParams.connectString != NULL)
@@ -112,6 +124,7 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target)
     // Prototype
     tpl->PrototypeTemplate()->Set(String::NewSymbol("write"), FunctionTemplate::New(Write)->GetFunction());
     tpl->PrototypeTemplate()->Set(String::NewSymbol("open"), FunctionTemplate::New(Open)->GetFunction());
+    tpl->PrototypeTemplate()->Set(String::NewSymbol("close"), FunctionTemplate::New(Close)->GetFunction());
 
     Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
     target->Set(String::NewSymbol("FtdiDevice"), constructor);
@@ -333,22 +346,30 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
 
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
-
-    WaitForReadEvent(baton);
-
-    FT_GetQueueStatus(device->ftHandle, &RxBytes);
-    printf("Status [RX: %d]\r\n", RxBytes);
-
-    if(RxBytes > 0)
+    while(1)
     {
-        baton->data = (uint8_t *)malloc(RxBytes);
+        WaitForReadEvent(baton);
 
-        ftStatus = FT_Read(device->ftHandle, baton->data, RxBytes, &BytesReceived);
-        if (ftStatus != FT_OK) 
+        FT_GetQueueStatus(device->ftHandle, &RxBytes);
+
+        if(RxBytes > 0)
         {
-            fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+            printf("Status [RX: %d]\r\n", RxBytes);
+            baton->data = (uint8_t *)malloc(RxBytes);
+
+            ftStatus = FT_Read(device->ftHandle, baton->data, RxBytes, &BytesReceived);
+            if (ftStatus != FT_OK) 
+            {
+                fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+            }
+            baton->length = BytesReceived;
+            break;
         }
-        baton->length = BytesReceived;
+
+        if(device->isClosing)
+        {
+            break;
+        }
     }
 }
 
@@ -356,8 +377,9 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
 {
     HandleScope scope;
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
+    NodeFtdi* device = baton->device;
 
-    if(baton->callback->IsFunction())
+    if(baton->length != 0 && baton->callback->IsFunction())
     {
         Handle<Value> argv[1];
 
@@ -373,14 +395,24 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
         Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
 
     }
-    else
+
+    if(baton->length != 0)
     {
-        printf("Could not call dataCb\r\n");
+        free(baton->data);
+        baton->length = 0;
     }
 
-    free(baton->data);
-
-    uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
+    if(device->isClosing)
+    {
+        uv_mutex_unlock((uv_mutex_t *) device->syncContext);
+        baton->callback.Dispose();
+        delete baton;
+        delete req;
+    }
+    else
+    {
+        uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
+    }
 }
 
 
@@ -457,78 +489,61 @@ void NodeFtdi::WriteFinished(uv_work_t* req)
 /*****************************
  * CLOSE Section
  *****************************/
-// Handle<Value> NodeFtdi::Close(const Arguments& args) 
-// {
-//     HandleScope scope;
+Handle<Value> NodeFtdi::Close(const Arguments& args) 
+{
+    HandleScope scope;
 
-//     if (args.Length() != 2) 
-//     {
-//         return NodeFtdi::ThrowTypeError("write() expects two arguments");
-//     }
+    // Get Object
+    NodeFtdi* device = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+    CloseBaton_t* baton = new CloseBaton_t();
 
-//     // buffer
-//     if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
-//     {
-//         return scope.Close(v8::ThrowException(Exception::TypeError(String::New("First argument must be a buffer"))));
-//     }
+    // callback
+    if(args[0]->IsFunction()) 
+    {
+        Local<Value> writeCallback = args[0];
+        baton->callback = Persistent<Value>::New(writeCallback);
+    }
 
-//     // options
-//     if(!args[1]->IsFunction()) 
-//     {
-//         return NodeFtdi::ThrowTypeError("write() expects a function as second argument");
-//     }
-//     Local<Value> writeCallback = args[1];
+    baton->device = device;
 
-//     // Get Object
-//     NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+    uv_work_t* req = new uv_work_t();
+    req->data = baton;
+    uv_queue_work(uv_default_loop(), req, NodeFtdi::CloseAsync, (uv_after_work_cb)NodeFtdi::CloseFinished);
 
-//      // buffer
-//     if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
-//     {
-//         return scope.Close(v8::ThrowException(Exception::TypeError(String::New("First argument must be a buffer"))));
-//     }
-//     Local<Object> buffer = Local<Object>::New(args[0]->ToObject());
+    return scope.Close(v8::Undefined());
+}
 
-//     obj->writeBaton.length = (DWORD)Buffer::Length(buffer);
-//     obj->writeBaton.data = (uint8_t*) malloc(obj->writeBaton.length);
-//     memcpy(obj->writeBaton.data, Buffer::Data(buffer), obj->writeBaton.length);
-//     obj->writeBaton.callback = Persistent<Value>::New(writeCallback);
+void NodeFtdi::CloseAsync(uv_work_t* req)
+{
+    FT_STATUS ftStatus;
+    CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
+    NodeFtdi* device = baton->device;
 
-//     uv_work_t* req = new uv_work_t();
-//     req->data = obj;
-//     uv_queue_work(uv_default_loop(), req, NodeFtdi::WriteAsync, (uv_after_work_cb)NodeFtdi::WriteFinished);
+    device->syncContext = &baton->closeMutex;
+    device->isClosing = true;
 
-//     return scope.Close(v8::Undefined());
-// }
+    uv_mutex_lock(&baton->closeMutex);
 
-// void NodeFtdi::CloseAsync(uv_work_t* req)
-// {
-//     FT_STATUS ftStatus;
-//     DWORD bytesWritten;
-//     NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
+    printf("Close Device\r\n");
+    ftStatus = FT_Close(device->ftHandle);
+    baton->status = ftStatus;
+}
 
-//     ftStatus = FT_Write(object->ftHandle, object->writeBaton.data, object->writeBaton.length, &bytesWritten);
-//     printf("%d bytes written\r\n", bytesWritten);
+void NodeFtdi::CloseFinished(uv_work_t* req)
+{
+    CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
 
-//     object->writeBaton.status = ftStatus;
-//     free(object->writeBaton.data);
-// }
+    if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
+    {
+        Handle<Value> argv[1];
+        argv[0] = Number::New(baton->status);
 
-// void NodeFtdi::CloseFinished(uv_work_t* req)
-// {
-//     NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
-
-//     if(object->writeBaton.callback->IsFunction())
-//     {
-//         Handle<Value> argv[1];
-//         argv[0] = Number::New(object->writeBaton.status);
-
-//         Function::Cast(*object->writeBaton.callback)->Call(Context::GetCurrent()->Global(), 1, argv);
-//     }
-
-//     delete req;
-//     object->writeBaton.callback.Dispose();
-// }
+        Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+    }
+    delete req;
+    baton->callback.Dispose();
+    delete baton;
+}
 
 /*****************************
  * Helper Section
@@ -660,8 +675,15 @@ FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
 
 void WaitForReadEvent(ReadBaton_t *baton)
 {
+
+    gettimeofday(&baton->tp, NULL);
+    /* Convert from timeval to timespec */
+    baton->ts.tv_sec  = baton->tp.tv_sec;
+    baton->ts.tv_nsec = baton->tp.tv_usec * 1000;
+    baton->ts.tv_sec += WAIT_TIME_SECONDS;
+
     pthread_mutex_lock(&(baton->eh).eMutex);
-    pthread_cond_wait(&(baton->eh).eCondVar, &(baton->eh).eMutex);
+    pthread_cond_timedwait(&(baton->eh).eCondVar, &(baton->eh).eMutex, &baton->ts);
     pthread_mutex_unlock(&(baton->eh).eMutex);
 }
 

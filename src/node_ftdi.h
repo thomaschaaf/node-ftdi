@@ -46,6 +46,7 @@ class NodeFtdi : public ObjectWrap
         static Handle<Value> New(const Arguments& args);
         static Handle<Value> Open(const Arguments& args);
         static Handle<Value> Write(const Arguments& args);
+        static Handle<Value> Close(const Arguments& args);
 
         static Handle<Value> ThrowTypeError(std::string message);
         static Handle<Value> ThrowLastError(std::string message);
@@ -61,6 +62,9 @@ class NodeFtdi : public ObjectWrap
 
         static void WriteAsync(uv_work_t* req);
         static void WriteFinished(uv_work_t* req);
+
+        static void CloseAsync(uv_work_t* req);
+        static void CloseFinished(uv_work_t* req);
         
         void ExtractDeviceSettings(Local<v8::Object> options);
         FT_STATUS SetDeviceSettings();
@@ -69,6 +73,9 @@ class NodeFtdi : public ObjectWrap
         FT_HANDLE ftHandle;
         DeviceParams_t deviceParams;
         ConnectionParams_t connectParams;
+
+        bool isClosing;
+        void* syncContext;
 };
 
 }

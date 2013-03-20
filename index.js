@@ -23,6 +23,7 @@ util.inherits(FtdiDevice, Duplex);
 FtdiDevice.prototype.open = function(settings, callback) {
 	var self = this;
 	this.connectionSettings = settings;
+	console.log("Settings: ", this.connectionSettings);
 	this.FTDIDevice.open(this.connectionSettings, function(data) {
 		self.emit('data', data);
 	}, callback);
@@ -31,9 +32,8 @@ FtdiDevice.prototype.open = function(settings, callback) {
 FtdiDevice.prototype.write = function(data, callback) {
 	if (!Buffer.isBuffer(data)) {
     data = new Buffer(data);
-  }
-	this.FTDIDevice.write(data);
-	callback();
+  	}
+	this.FTDIDevice.write(data, callback);
 };
 
 FtdiDevice.prototype.close = function(callback) {

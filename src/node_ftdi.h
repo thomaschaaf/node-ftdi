@@ -19,16 +19,10 @@ typedef enum
     ConnectType_ByLocationId,
 } ConnectType_t;
 
-typedef enum 
-{
-    BatonType_Read,
-    BatonType_Open,
-} BatonType_t;
-
 typedef struct 
 {
     ConnectType_t connectType;
-    const char *connectString;
+    char *connectString;
     int32_t connectId;
 } ConnectionParams_t;
 
@@ -53,21 +47,24 @@ typedef struct
 #else
     HANDLE hEvent;
 #endif
-    uint8_t* readData;
-    int32_t bufferLength;
+    uint8_t* data;
+    DWORD length;
     Persistent<Value> callback;
     FT_STATUS status;
 } ReadBaton_t;
+
+typedef struct  
+{
+    uint8_t* data;
+    DWORD length;
+    Persistent<Value> callback;
+    FT_STATUS status;
+} WriteBaton_t;
 
 class NodeFtdi : public ObjectWrap 
 {
     public:
         static void Initialize(Handle<Object> target);
-        
-        void ReadDataAsync();
-        FT_STATUS OpenDevice();
-        FT_STATUS SetDeviceSettings();
-        void SetBatonStatus(BatonType_t baton, FT_STATUS status);
 
     protected:
         NodeFtdi();
@@ -83,19 +80,26 @@ class NodeFtdi : public ObjectWrap
         static Handle<Value> RegisterDataCallback(const Arguments& args);
 
     private:
+        static void ReadDataAsync(uv_work_t* req);
         static void ReadCallback(uv_work_t* req);
+
+        static void OpenAsync(uv_work_t* req);
         static void OpenFinished(uv_work_t* req);
+
+        static void WriteAsync(uv_work_t* req);
+        static void WriteFinished(uv_work_t* req);
         
         void ExtractDeviceSettings(Local<v8::Object> options);
-
-        static Persistent<Object> module_handle;
-        static Persistent<String> callback_symbol;
+        FT_STATUS SetDeviceSettings();
+        FT_STATUS OpenDevice();
 
         FT_HANDLE ftHandle;
         DeviceParams_t deviceParams;
         ConnectionParams_t connectParams;
+
         ReadBaton_t readBaton;
         OpenBaton_t openBaton;
+        WriteBaton_t writeBaton;
 };
 
 }

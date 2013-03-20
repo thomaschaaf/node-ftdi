@@ -40,7 +40,6 @@ void FindAllAsync(uv_work_t* req)
 {
     DeviceListBaton* listBaton = static_cast<DeviceListBaton*>(req->data);
 
-    printf("findAll \r\n");
     FT_STATUS ftStatus;
     DWORD numDevs = 0;
 
@@ -82,7 +81,6 @@ void FindAllFinished(uv_work_t* req)
     Local<Array> array= Array::New(listBaton->listLength);
     if(listBaton->status == FT_OK)
     {
-        printf("NumFindDevices: %d\r\n", listBaton->listLength);
         for (DWORD i = 0; i < listBaton->listLength; i++) 
         {
             Local<Object> obj = Object::New();

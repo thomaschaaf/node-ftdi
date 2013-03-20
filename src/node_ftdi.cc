@@ -10,13 +10,9 @@
 #include "node_ftdi.h"
 #include "ftdi_driver.h"
 
-
-
 #ifndef WIN32
 #include <unistd.h>
 #endif
-
-#define EVENT_MASK (FT_EVENT_RXCHAR)
 
 using namespace std;
 using namespace v8;
@@ -24,34 +20,28 @@ using namespace node;
 using namespace node_ftdi;
 
 
+/**********************************
+ * Local defines
+ **********************************/
+#define EVENT_MASK (FT_EVENT_RXCHAR)
+
+
+/**********************************
+ * Local Helper Functions protoypes
+ **********************************/
 FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle);
 void WaitForReadEvent(ReadBaton_t *baton);
-
-void OpenAsync(uv_work_t* req);
-void ReadDataAsyncStatic(uv_work_t* req);
 
 UCHAR GetWordLength(int wordLength);
 UCHAR GetStopBits(int stopBits);
 UCHAR GetParity(const char* string);
 
+void ToCString(Local<String> val, char ** ptr);
 
-const char* ToCString(Local<String> val) 
-{
-    return *String::Utf8Value(val);
-}
 
-Handle<Value> NodeFtdi::ThrowTypeError(std::string message) 
-{
-    return ThrowException(Exception::TypeError(String::New(message.c_str())));
-}
-
-Handle<Value> NodeFtdi::ThrowLastError(std::string message) 
-{
-    Local<String> msg = String::New(message.c_str());
-
-    return ThrowException(Exception::Error(msg));
-}
-
+/*****************************
+ * CREATION Section
+ *****************************/
 
 NodeFtdi::NodeFtdi() 
 {
@@ -66,6 +56,11 @@ NodeFtdi::~NodeFtdi()
     if(openBaton.callback->IsFunction())
     {
         openBaton.callback.Dispose();
+    }
+
+    if(connectParams.connectString != NULL)
+    {
+        free(connectParams.connectString);
     }
 };
 
@@ -95,6 +90,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     Local<String> description = String::New(DEVICE_DESCRIPTION_TAG);
 
     NodeFtdi* object = new NodeFtdi();
+    object->connectParams.connectString = NULL;
 
     if(args[0]->IsObject()) 
     {
@@ -107,7 +103,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
         }
         else if(obj->Has(serial)) 
         {
-            object->connectParams.connectString = ToCString(obj->Get(serial)->ToString());
+            ToCString(obj->Get(serial)->ToString(), &object->connectParams.connectString);
             object->connectParams.connectType = ConnectType_BySerial;
         }
         else if(obj->Has(index)) 
@@ -117,7 +113,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
         }
         else if(obj->Has(description)) 
         {
-            object->connectParams.connectString = ToCString(obj->Get(description)->ToString());
+            ToCString(obj->Get(description)->ToString(), &object->connectParams.connectString);
             object->connectParams.connectType = ConnectType_ByDescription;
         }
     }
@@ -138,89 +134,6 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     return args.This();
 }
 
-void NodeFtdi::SetBatonStatus(BatonType_t baton, FT_STATUS status)
-{
-    switch(baton)
-    {
-        case BatonType_Open:
-            openBaton.status = status;
-        break;
-
-        case BatonType_Read:
-            readBaton.status = status;
-        break;
-    }
-}
-
-/*****************************
- * READ Section
- *****************************/
-void ReadDataAsyncStatic(uv_work_t* req)
-{
-    NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
-    object->ReadDataAsync();
-}
-
-void NodeFtdi::ReadDataAsync()
-{
-    FT_STATUS ftStatus;
-    DWORD RxBytes;
-    DWORD BytesReceived;
-
-    printf("Waiting for data\r\n");
-    WaitForReadEvent(&readBaton);
-
-    FT_GetQueueStatus(ftHandle, &RxBytes);
-    printf("Status [RX: %d]\r\n", RxBytes);
-
-    if(RxBytes > 0)
-    {
-        readBaton.readData = (uint8_t *)malloc(RxBytes);
-
-        ftStatus = FT_Read(ftHandle, readBaton.readData, RxBytes, &BytesReceived);
-        if (ftStatus != FT_OK) 
-        {
-            fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
-        }
-        readBaton.bufferLength = BytesReceived;
-    }
-}
-
-void NodeFtdi::ReadCallback(uv_work_t* req)
-{
-    HandleScope scope;
-    NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
-    ReadBaton_t* data = &object->readBaton;
-
-    printf("ReadCallback\r\n");
-
-    if(data->callback->IsFunction())
-    {
-        Handle<Value> argv[1];
-
-        Buffer *slowBuffer = Buffer::New(data->bufferLength);
-        memcpy(Buffer::Data(slowBuffer), data->readData, data->bufferLength);
-        Local<Object> globalObj = Context::GetCurrent()->Global();
-
-        Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
-        Handle<Value> constructorArgs[3] = { slowBuffer->handle_, Integer::New(data->bufferLength), Integer::New(0) };
-        Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
-        argv[0] = actualBuffer;
-
-        Function::Cast(*data->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
-
-    }
-    else
-    {
-        printf("Could not call dataCb\r\n");
-    }
-
-    free(data->readData);
-
-    uv_queue_work(uv_default_loop(), req, ReadDataAsyncStatic, (uv_after_work_cb)NodeFtdi::ReadCallback);
-}
-
-
 /*****************************
  * OPEN Section
  *****************************/
@@ -231,7 +144,12 @@ Handle<Value> NodeFtdi::Open(const Arguments& args)
     // Get Object
     NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
 
-    if (args.Length() != 3 || !args[0]->IsObject()) 
+    if (args.Length() != 3) 
+    {
+        return NodeFtdi::ThrowTypeError("open() expects three arguments");
+    }
+
+    if (!args[0]->IsObject()) 
     {
         return NodeFtdi::ThrowTypeError("open() expects a object as first argument");
     }
@@ -250,8 +168,6 @@ Handle<Value> NodeFtdi::Open(const Arguments& args)
     }
     Local<Value> openCallback = args[2];
 
-    printf("Open Device\r\n");
-
     obj->ExtractDeviceSettings(args[0]->ToObject());
     obj->readBaton.callback =  Persistent<Value>::New(readCallback);
     obj->openBaton.callback =  Persistent<Value>::New(openCallback);
@@ -264,11 +180,10 @@ Handle<Value> NodeFtdi::Open(const Arguments& args)
 }
 
 
-void OpenAsync(uv_work_t* req)
+void NodeFtdi::OpenAsync(uv_work_t* req)
 {
     FT_STATUS ftStatus;
     NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
-    printf("Open Device Async\r\n");
 
     ftStatus = object->OpenDevice();
     if (ftStatus != FT_OK) 
@@ -284,7 +199,7 @@ void OpenAsync(uv_work_t* req)
         }
     }
 
-    object->SetBatonStatus(BatonType_Open, ftStatus);
+    object->openBaton.status = ftStatus;
 }
 
 void NodeFtdi::OpenFinished(uv_work_t* req)
@@ -297,7 +212,7 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
 
         uv_work_t* req = new uv_work_t();
         req->data = object;
-        uv_queue_work(uv_default_loop(), req, ReadDataAsyncStatic, (uv_after_work_cb)NodeFtdi::ReadCallback);
+        uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
     }
 
     if(object->openBaton.callback->IsFunction())
@@ -308,6 +223,7 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
         Function::Cast(*object->openBaton.callback)->Call(Context::GetCurrent()->Global(), 1, argv);
     }
 
+    delete req;
     object->openBaton.callback.Dispose();
 }
 
@@ -352,15 +268,155 @@ FT_STATUS NodeFtdi::OpenDevice()
             }
         }
 
-        printf("Open [Flag: %x, LID: %d]\n", flags, (int)(arg));
-
         return FT_OpenEx(arg, flags, &ftHandle);
     }
 
     return FT_INVALID_PARAMETER;
 }
 
-FT_STATUS NodeFtdi::SetDeviceSettings()
+/*****************************
+ * READ Section
+ *****************************/
+void NodeFtdi::ReadDataAsync(uv_work_t* req)
+{
+    FT_STATUS ftStatus;
+    DWORD RxBytes;
+    DWORD BytesReceived;
+
+    NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
+
+    printf("Waiting for data\r\n");
+    WaitForReadEvent(&object->readBaton);
+
+    FT_GetQueueStatus(object->ftHandle, &RxBytes);
+    printf("Status [RX: %d]\r\n", RxBytes);
+
+    if(RxBytes > 0)
+    {
+        object->readBaton.data = (uint8_t *)malloc(RxBytes);
+
+        ftStatus = FT_Read(object->ftHandle, object->readBaton.data, RxBytes, &BytesReceived);
+        if (ftStatus != FT_OK) 
+        {
+            fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+        }
+        object->readBaton.length = BytesReceived;
+    }
+}
+
+void NodeFtdi::ReadCallback(uv_work_t* req)
+{
+    HandleScope scope;
+    NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
+    ReadBaton_t* data = &object->readBaton;
+
+    if(data->callback->IsFunction())
+    {
+        Handle<Value> argv[1];
+
+        Buffer *slowBuffer = Buffer::New(data->length);
+        memcpy(Buffer::Data(slowBuffer), data->data, data->length);
+        Local<Object> globalObj = Context::GetCurrent()->Global();
+
+        Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
+        Handle<Value> constructorArgs[3] = { slowBuffer->handle_, Integer::New(data->length), Integer::New(0) };
+        Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
+        argv[0] = actualBuffer;
+
+        Function::Cast(*data->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+
+    }
+    else
+    {
+        printf("Could not call dataCb\r\n");
+    }
+
+    free(data->data);
+
+    uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
+}
+
+
+/*****************************
+ * WRITE Section
+ *****************************/
+Handle<Value> NodeFtdi::Write(const Arguments& args) 
+{
+    HandleScope scope;
+
+    if (args.Length() != 2) 
+    {
+        return NodeFtdi::ThrowTypeError("write() expects two arguments");
+    }
+
+    // buffer
+    if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
+    {
+        return scope.Close(v8::ThrowException(Exception::TypeError(String::New("First argument must be a buffer"))));
+    }
+
+    // options
+    if(!args[1]->IsFunction()) 
+    {
+        return NodeFtdi::ThrowTypeError("write() expects a function as second argument");
+    }
+    Local<Value> writeCallback = args[1];
+
+    // Get Object
+    NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+
+     // buffer
+    if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
+    {
+        return scope.Close(v8::ThrowException(Exception::TypeError(String::New("First argument must be a buffer"))));
+    }
+    Local<Object> buffer = Local<Object>::New(args[0]->ToObject());
+
+    obj->writeBaton.length = (DWORD)Buffer::Length(buffer);
+    obj->writeBaton.data = (uint8_t*) malloc(obj->writeBaton.length);
+    memcpy(obj->writeBaton.data, Buffer::Data(buffer), obj->writeBaton.length);
+    obj->writeBaton.callback = Persistent<Value>::New(writeCallback);
+
+    uv_work_t* req = new uv_work_t();
+    req->data = obj;
+    uv_queue_work(uv_default_loop(), req, NodeFtdi::WriteAsync, (uv_after_work_cb)NodeFtdi::WriteFinished);
+
+    return scope.Close(v8::Undefined());
+}
+
+void NodeFtdi::WriteAsync(uv_work_t* req)
+{
+    FT_STATUS ftStatus;
+    DWORD bytesWritten;
+    NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
+
+    ftStatus = FT_Write(object->ftHandle, object->writeBaton.data, object->writeBaton.length, &bytesWritten);
+    printf("%d bytes written\r\n", bytesWritten);
+
+    object->writeBaton.status = ftStatus;
+    free(object->writeBaton.data);
+}
+
+void NodeFtdi::WriteFinished(uv_work_t* req)
+{
+    NodeFtdi* object = static_cast<NodeFtdi*>(req->data);
+
+    if(object->writeBaton.callback->IsFunction())
+    {
+        Handle<Value> argv[1];
+        argv[0] = Number::New(object->writeBaton.status);
+
+        Function::Cast(*object->writeBaton.callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+    }
+
+    delete req;
+    object->writeBaton.callback.Dispose();
+}
+
+/*****************************
+ * Helper Section
+ *****************************/
+ FT_STATUS NodeFtdi::SetDeviceSettings()
 {
     FT_STATUS ftStatus;
     
@@ -377,6 +433,7 @@ FT_STATUS NodeFtdi::SetDeviceSettings()
         fprintf(stderr, "Can't setBaudRate: %d\n", ftStatus);
         return ftStatus;
     }
+
     printf("Connection Settings set [Baud: %d, DataBits: %d, StopBits: %d, Parity: %d]\r\n", deviceParams.baudRate, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
     return ftStatus;
 }
@@ -384,10 +441,10 @@ FT_STATUS NodeFtdi::SetDeviceSettings()
 void NodeFtdi::ExtractDeviceSettings(Local<Object> options)
 {
     HandleScope scope;
-    Local<String> baudrate = String::New(CONNECTION_BAUDRATE_TAG);
-    Local<String> databits = String::New(CONNECTION_DATABITS_TAG);
-    Local<String> stopbits = String::New(CONNECTION_STOPBITS_TAG);
-    Local<String> parity = String::New(CONNECTION_PARITY_TAG);
+    Local<String> baudrate  = String::New(CONNECTION_BAUDRATE_TAG);
+    Local<String> databits  = String::New(CONNECTION_DATABITS_TAG);
+    Local<String> stopbits  = String::New(CONNECTION_STOPBITS_TAG);
+    Local<String> parity    = String::New(CONNECTION_PARITY_TAG);
 
     if(options->Has(baudrate)) 
     {
@@ -403,41 +460,12 @@ void NodeFtdi::ExtractDeviceSettings(Local<Object> options)
     }
     if(options->Has(parity)) 
     {
-        printf("PArityFound: %s\r\n", ToCString(options->Get(parity)->ToString()));
-        deviceParams.parity = GetParity(ToCString(options->Get(parity)->ToString()));
+        char* str;
+        ToCString(options->Get(parity)->ToString(), &str);
+        deviceParams.parity = GetParity(str);
+        free(str);
     }
 }
-
-
-Handle<Value> NodeFtdi::Write(const Arguments& args) 
-{
-    HandleScope scope;
-    FT_STATUS ftStatus;
-    DWORD BytesWritten;
-
-    // Get Object
-    NodeFtdi* obj = ObjectWrap::Unwrap<NodeFtdi>(args.This());
-
-     // buffer
-    if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
-    {
-        return scope.Close(v8::ThrowException(Exception::TypeError(String::New("First argument must be a buffer"))));
-    }
-    Persistent<Object> buffer = Persistent<Object>::New(args[0]->ToObject());
-    char* bufferData = Buffer::Data(buffer);
-    DWORD bufferLength = (DWORD)Buffer::Length(buffer);
-
-    ftStatus = FT_Write(obj->ftHandle, bufferData, bufferLength, &BytesWritten);
-    if (ftStatus != FT_OK) 
-    {
-        fprintf(stderr, "Can't write to ftdi device: %d\n", ftStatus);
-        return NodeFtdi::ThrowTypeError("Can't write to ftdi device");
-    }
-    printf("%d bytes written\r\n", BytesWritten);
-
-    return scope.Close(v8::Undefined());
-}
-
 
 UCHAR GetWordLength(int wordLength)
 {
@@ -468,25 +496,44 @@ UCHAR GetStopBits(int stopBits)
 
 UCHAR GetParity(const char* string)
 {
-    printf("PArity: %s\n", string);
-    if(strcmp(CONNECTION_PARITY_NONE, string) == 0)
+    printf("Parity: %s , Stlen: %d\n", string, strlen(string));
+    if(strcasecmp(CONNECTION_PARITY_NONE, string) == 0)
     {
         return FT_PARITY_NONE;
     }
-    else if(strcmp(CONNECTION_PARITY_ODD, string) == 0)
+    else if(strcasecmp(CONNECTION_PARITY_ODD, string) == 0)
     {
         return FT_PARITY_ODD;
     }
-    else if(strcmp(CONNECTION_PARITY_EVEN, string) == 0)
+    else if(strcasecmp(CONNECTION_PARITY_EVEN, string) == 0)
     {
         return FT_PARITY_EVEN;
     }
     return FT_PARITY_NONE;
 }
 
-/**
- * Linux / Mac Functions
- */
+void ToCString(Local<String> val, char ** ptr) 
+{
+    *ptr = (char *) malloc (val->Utf8Length());
+    val->WriteAscii(*ptr, 0, -1, 0);
+}
+
+Handle<Value> NodeFtdi::ThrowTypeError(std::string message) 
+{
+    return ThrowException(Exception::TypeError(String::New(message.c_str())));
+}
+
+Handle<Value> NodeFtdi::ThrowLastError(std::string message) 
+{
+    Local<String> msg = String::New(message.c_str());
+
+    return ThrowException(Exception::Error(msg));
+}
+
+
+/*****************************
+ * Platform dependet Section
+ *****************************/
 #ifndef WIN32
 
 FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)

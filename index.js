@@ -21,18 +21,29 @@ util.inherits(FtdiDevice, EventEmitter);
 FtdiDevice.prototype.open = function(settings, callback) {
 	var self = this;
 	this.connectionSettings = settings;
-	console.log("Settings: ", this.connectionSettings);
 	this.FTDIDevice.open(this.connectionSettings, function(data) {
 		self.emit('data', data);
-	}, callback);
+	}, function(err) {
+		if (err) {
+			self.emit('error', err);
+		} else {
+			self.emit('open');
+		}
+		if (callback) { callback(err); }
+	});
 };
 
 FtdiDevice.prototype.write = function(data, callback) {
 	if (!Buffer.isBuffer(data)) {
     data = new Buffer(data);
-  	}
-	this.FTDIDevice.write(data, callback);
-
+  }
+  var self = this;
+	this.FTDIDevice.write(data, function(err) {
+		if (err) {
+			self.emit('error', err);
+		}
+		if (callback) { callback(err); }
+	});
 };
 
 FtdiDevice.prototype.close = function(callback) {

@@ -34,40 +34,6 @@ typedef struct
     UCHAR parity;
 } DeviceParams_t;
 
-typedef struct 
-{
-    Persistent<Value> callback; 
-    FT_STATUS status;
-} OpenBaton_t;
-
-typedef struct  
-{
-#ifndef WIN32
-    EVENT_HANDLE eh;
-#else
-    HANDLE hEvent;
-#endif
-    uint8_t* data;
-    DWORD length;
-    Persistent<Value> callback;
-    FT_STATUS status;
-} ReadBaton_t;
-
-typedef struct  
-{
-    FT_HANDLE ftHandle;
-    uint8_t* data;
-    DWORD length;
-    Persistent<Value> callback;
-    FT_STATUS status;
-} WriteBaton_t;
-
-typedef struct  
-{
-    Persistent<Value> callback;
-    FT_STATUS status;
-} CloseBaton_t;
-
 class NodeFtdi : public ObjectWrap 
 {
     public:
@@ -103,10 +69,6 @@ class NodeFtdi : public ObjectWrap
         FT_HANDLE ftHandle;
         DeviceParams_t deviceParams;
         ConnectionParams_t connectParams;
-
-        ReadBaton_t readBaton;
-        OpenBaton_t openBaton;
-        CloseBaton_t closeBaton;
 };
 
 }

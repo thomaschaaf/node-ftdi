@@ -268,11 +268,6 @@ FT_STATUS NodeFtdi::OpenDevice()
             }
         }
 
-<<<<<<< HEAD
-=======
-        // printf("Open [Flag: %x, LID: %d]\n", flags, (int)(arg));
-
->>>>>>> origin/master
         return FT_OpenEx(arg, flags, &ftHandle);
     }
 

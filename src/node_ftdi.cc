@@ -278,7 +278,14 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
     if(baton->callback->IsFunction())
     {
         Handle<Value> argv[1];
-        argv[0] = Number::New(baton->status);
+        if(baton->status != FT_OK)
+        {
+            argv[0] = String::New(GetStatusString(baton->status));
+        }
+        else
+        {
+            argv[0] = Undefined();
+        }
 
         Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
     }
@@ -474,7 +481,14 @@ void NodeFtdi::WriteFinished(uv_work_t* req)
     if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
     {
         Handle<Value> argv[1];
-        argv[0] = Number::New(baton->status);
+        if(baton->status != FT_OK)
+        {
+            argv[0] = String::New(GetStatusString(baton->status));
+        }
+        else
+        {
+            argv[0] = Undefined();
+        }
 
         Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
     }
@@ -535,7 +549,14 @@ void NodeFtdi::CloseFinished(uv_work_t* req)
     if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
     {
         Handle<Value> argv[1];
-        argv[0] = Number::New(baton->status);
+        if(baton->status != FT_OK)
+        {
+            argv[0] = String::New(GetStatusString(baton->status));
+        }
+        else
+        {
+            argv[0] = Undefined();
+        }
 
         Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
     }

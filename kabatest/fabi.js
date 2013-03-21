@@ -25,11 +25,13 @@ var connectionSettings =
 // ftdi.find(0x18d9, 0x01a0, function(status, devices) {console.log("5");console.log(devices)});
 
 
-var devices = ftdi.find(0x18d9, 0x01a0, function(status, devices) 
+ftdi.find(0x18d9, 0x01a0, function(status, devices) 
 	{
 		if(devices.length > 0)
 		{
-			var device = devices[0];
+			var device = new ftdi.FtdiDevice(devices[0]);
+
+			device.on('error', function(error) {console.log("Error: " + error)});
 
 			device.on('data', function(data)
 			{
@@ -38,20 +40,27 @@ var devices = ftdi.find(0x18d9, 0x01a0, function(status, devices)
 
 				device.close(function(status) {
 					console.log("JS Close Device");
+
+					device.on('error', function(error) {console.log("Error: " + error)});
+
+					device.on('data', function(data)
+					{
+						console.log('Output:');
+						console.log( data );
+					});
+			
+
 					device.open(connectionSettings, function(status) 
 					{
-						console.log('openResult: ' + status);
-						device.write(dataToWrite, function(status){console.log('WriteResult: ' + status);});
+						device.write(dataToWrite);
 					}
 					)
 				});
 			});
 
 			device.open(connectionSettings, function(status) 
-			{
-				console.log('openResult: ' + status);
-				
-				device.write(dataToWrite, function(status){console.log('WriteResult: ' + status);});
+			{				
+				device.write(dataToWrite);
 
 				// setInterval(function() 
 				// {

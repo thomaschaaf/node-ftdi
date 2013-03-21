@@ -52,8 +52,8 @@ FtdiDevice.prototype.close = function(callback) {
 		if (err) {
 			self.emit('error', err);
 		} else {
-			self.removeAllListeners();
 			self.emit('close');
+			self.removeAllListeners();
 		}
 		if (callback) callback(err);
 	});

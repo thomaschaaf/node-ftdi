@@ -354,7 +354,6 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
 
         if(RxBytes > 0)
         {
-            printf("Status [RX: %d]\r\n", RxBytes);
             baton->data = (uint8_t *)malloc(RxBytes);
 
             ftStatus = FT_Read(device->ftHandle, baton->data, RxBytes, &BytesReceived);

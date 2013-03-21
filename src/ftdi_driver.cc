@@ -7,9 +7,10 @@
 using namespace v8;
 using namespace node;
 
-static uv_mutex_t listMutex;
 
-
+/**********************************
+ * Local typedefs
+ **********************************/
 struct DeviceListBaton
 {
     Persistent<Value> callback;
@@ -20,6 +21,23 @@ struct DeviceListBaton
     int pid;
 };
 
+
+/**********************************
+ * Local Helper Functions protoypes
+ **********************************/
+bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVid, int filterPid);
+
+
+/**********************************
+ * Local Variables
+ **********************************/
+static uv_mutex_t listMutex;
+
+
+
+/**********************************
+ * Functions
+ **********************************/
 void InitializeList(Handle<Object> target) 
 {
     Persistent<FunctionTemplate> constructor_template;
@@ -83,13 +101,17 @@ void FindAllFinished(uv_work_t* req)
     {
         for (DWORD i = 0; i < listBaton->listLength; i++) 
         {
-            Local<Object> obj = Object::New();
-            obj->Set(String::New(DEVICE_DESCRIPTION_TAG), String::New(listBaton->devInfo[i].Description));
-            obj->Set(String::New(DEVICE_SERIAL_NR_TAG), String::New(listBaton->devInfo[i].SerialNumber));
-            obj->Set(String::New(DEVICE_LOCATION_ID_TAG), Number::New(listBaton->devInfo[i].LocId));
-            obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
-            obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
-            array->Set(i, obj);
+            if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
+            {
+                Local<Object> obj = Object::New();
+                obj->Set(String::New(DEVICE_DESCRIPTION_TAG), String::New(listBaton->devInfo[i].Description));
+                obj->Set(String::New(DEVICE_SERIAL_NR_TAG), String::New(listBaton->devInfo[i].SerialNumber));
+                obj->Set(String::New(DEVICE_LOCATION_ID_TAG), Number::New(listBaton->devInfo[i].LocId));
+                obj->Set(String::New(DEVICE_INDEX_TAG), Number::New(i));
+                obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
+                obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
+                array->Set(i, obj);
+            }
         }
 
         free(listBaton->devInfo);
@@ -136,4 +158,24 @@ Handle<Value> FindAll(const Arguments& args)
     uv_queue_work(uv_default_loop(), req, FindAllAsync, (uv_after_work_cb)FindAllFinished);
 
     return scope.Close(v8::Undefined());
+}
+
+bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVid, int filterPid)
+{
+    int devVid = (devInfo->ID >> 16) & (0xFFFF);
+    int devPid = (devInfo->ID) & (0xFFFF); 
+
+    if(filterVid == 0 && filterPid == 0)
+    {
+        return true;
+    }
+    if(filterVid != 0 && filterVid != devVid)
+    {
+        return false;
+    }
+    if(filterPid != 0 && filterPid != devPid)
+    {
+        return false;
+    }
+    return true;
 }

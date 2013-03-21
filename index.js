@@ -47,7 +47,16 @@ FtdiDevice.prototype.write = function(data, callback) {
 };
 
 FtdiDevice.prototype.close = function(callback) {
-	this.FTDIDevice.close(callback);
+	var self = this;
+	this.FTDIDevice.close(function(err) {
+		if (err) {
+			self.emit('error', err);
+		} else {
+			self.removeAllListeners();
+			self.emit('close');
+		}
+		if (callback) callback(err);
+	});
 };
 
 module.exports = {
@@ -64,17 +73,7 @@ module.exports = {
 			pid = null;
 		}
 
-		FTDIDriver.findAll(vid, pid, function(status, devs) {
-			var devices = [];
-
-			for (var i = 0, len = devs.length; i < len; i++) {
-				var devSettings = devs[i];
-				devSettings.index = i;
-				devices.push(new FtdiDevice(devSettings));
-			}
-
-			callback(status, devices);
-		});
+		FTDIDriver.findAll(vid, pid, callback);
 	}
 
 };

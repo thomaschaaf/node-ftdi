@@ -1,7 +1,7 @@
 var ftdi = require('../index');
 
-ftdi.find(0x18d9, 0x01a0, function(err, devices) { console.log(devices);
-  var device = devices[0];
+ftdi.find(0x18d9, 0x01a0, function(err, devices) {
+  var device = new ftdi.FtdiDevice(devices[0]);
 
   device.on('error', function() {
 

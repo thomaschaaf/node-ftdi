@@ -1,14 +1,7 @@
 var ftdi = require('../index');
 
-var dataToWrite = [0x04, 0x00, 0x02, 0x79, 0x40];
-
-// ftdi.find(function(err, devices) {}); // returns all ftdi devices
-// ftdi.find(0x27f4, function(err, devices) {}); // returns all ftdi devices with matching vendor
-// ftdi.find(0x27f4, 0x0203, function(err, devices) {}); // returns all ftdi devices with matching vendor and product
-
-
 ftdi.find(0x27f4, 0x0203, function(err, devices) {
-  var device = devices[0];
+  var device = new FtdiDevice(devices[0]);
   // or
   // var device = new ftdi.FtdiPort(serialnumber, locationId);
   // or

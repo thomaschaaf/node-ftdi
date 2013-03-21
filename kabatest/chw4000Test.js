@@ -9,15 +9,6 @@ var dataToWrite = [0x04, 0x00, 0x02, 0x79, 0x40];
 
 ftdi.find(0x27f4, 0x0203, function(err, devices) {
   var device = devices[0];
-  // or
-  // var device = new ftdi.FtdiPort(serialnumber, locationId);
-  // or
-  // var device = new ftdi.FtdiSerialPort(portName, {
-  //   baudrate: 115200,
-  //   databits: 8,
-  //   stopbits: 1,
-  //   parity: 'none'
-  // });
 
   device.on('error', function() {
 

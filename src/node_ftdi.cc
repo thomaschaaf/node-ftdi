@@ -26,7 +26,11 @@ using namespace node_ftdi;
  * Local defines
  **********************************/
 #define EVENT_MASK (FT_EVENT_RXCHAR)
-#define WAIT_TIME_MILLISECONDS       1000
+#define WAIT_TIME_MILLISECONDS      500
+
+#define NANOSECS_PER_SECOND         1000000000
+#define NANOSECS_PER_MILISECOND     1000000
+#define MILISECS_PER_SECOND         1000
 
 /**********************************
  * Local typedefs
@@ -401,6 +405,8 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
             baton->length = BytesReceived;
             return;
         }
+
+        printf("No Close detected\r\n");
     }
 }
 
@@ -751,17 +757,27 @@ FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
     return status;
 }
 
+
 void WaitForReadEvent(ReadBaton_t *baton)
 {
-
     gettimeofday(&baton->tp, NULL);
+
+    int additionalSeconds = 0;
+    int additionalMilisecs = 0;
+    additionalSeconds = (WAIT_TIME_MILLISECONDS  / MILISECS_PER_SECOND);
+    additionalMilisecs = (WAIT_TIME_MILLISECONDS % MILISECS_PER_SECOND);
+
+    long additionalNanosec = baton->tp.tv_usec * 1000 + additionalMilisecs * NANOSECS_PER_MILISECOND;
+    additionalSeconds += (additionalNanosec / NANOSECS_PER_SECOND);
+    additionalNanosec = (additionalNanosec % NANOSECS_PER_SECOND);
+
     /* Convert from timeval to timespec */
     baton->ts.tv_sec  = baton->tp.tv_sec;
-    baton->ts.tv_nsec = baton->tp.tv_usec * 1000;
-    baton->ts.tv_sec += WAIT_TIME_SECONDS;
+    baton->ts.tv_nsec = additionalNanosec;
+    baton->ts.tv_sec += additionalSeconds;
 
     pthread_mutex_lock(&(baton->eh).eMutex);
-    pthread_cond_timedwait(&(baton->eh).eCondVar, &(baton->eh).eMutex, &baton->ts);
+    int rc = pthread_cond_timedwait(&(baton->eh).eCondVar, &(baton->eh).eMutex, &baton->ts);
     pthread_mutex_unlock(&(baton->eh).eMutex);
 }
 

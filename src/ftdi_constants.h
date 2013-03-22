@@ -39,6 +39,9 @@
 
 #define FT_STATUS_CUSTOM_ALREADY_CLOSING			"Device Already closing"
 
+// Lock for Library Calls
+extern uv_mutex_t libraryMutex;
+
 static const char * error_strings[] = {
 	FT_STATUS_0,
 	FT_STATUS_1,

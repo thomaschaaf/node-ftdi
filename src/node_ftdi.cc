@@ -95,7 +95,6 @@ void ToCString(Local<String> val, char ** ptr);
 /**********************************
  * Local Variables
  **********************************/
-static uv_mutex_t libraryMutex;
 
 
 /*****************************
@@ -128,8 +127,6 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target)
 
     Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
     target->Set(String::NewSymbol("FtdiDevice"), constructor);
-
-    uv_mutex_init(&libraryMutex);
 }
 
 Handle<Value> NodeFtdi::New(const Arguments& args) 
@@ -369,7 +366,6 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
         // Check if we are closing the device
         if(device->deviceState == DeviceState_Closing)
         {
-            printf("Purge Device\r\n");
             uv_mutex_lock(&libraryMutex);  
             FT_Purge(device->ftHandle, FT_PURGE_RX | FT_PURGE_TX);
             uv_mutex_unlock(&libraryMutex);  
@@ -563,8 +559,8 @@ void NodeFtdi::CloseAsync(uv_work_t* req)
     NodeFtdi* device = baton->device;
 
     device->syncContext = &baton->closeMutex;
-
     device->deviceState = DeviceState_Closing;
+
     uv_mutex_lock(&baton->closeMutex);
 
     uv_mutex_lock(&libraryMutex);  
@@ -772,6 +768,7 @@ extern "C" {
   {
     InitializeList(target);
     NodeFtdi::Initialize(target);
+    uv_mutex_init(&libraryMutex);
   }
 }
 

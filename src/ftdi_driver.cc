@@ -31,6 +31,7 @@ bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVi
 /**********************************
  * Local Variables
  **********************************/
+uv_mutex_t libraryMutex;
 static uv_mutex_t listMutex;
 
 
@@ -67,11 +68,15 @@ void FindAllAsync(uv_work_t* req)
 #ifndef WIN32
     if(listBaton->vid != 0 && listBaton->pid != 0)
     {
+        uv_mutex_lock(&libraryMutex);  
         FT_SetVIDPID(listBaton->vid, listBaton->pid);
+        uv_mutex_unlock(&libraryMutex);  
     }
 #endif
 
+    uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_CreateDeviceInfoList(&numDevs);
+    uv_mutex_unlock(&libraryMutex);
     if (ftStatus == FT_OK) 
     {
         if (numDevs > 0) 
@@ -79,7 +84,9 @@ void FindAllAsync(uv_work_t* req)
             // allocate storage for list based on numDevs
             listBaton->devInfo =  (FT_DEVICE_LIST_INFO_NODE*) malloc(sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs); 
             // get the device information list
+            uv_mutex_lock(&libraryMutex);
             ftStatus = FT_GetDeviceInfoList(listBaton->devInfo, &numDevs); 
+            uv_mutex_unlock(&libraryMutex);
             if (ftStatus != FT_OK) 
             {
                  free(listBaton->devInfo);

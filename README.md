@@ -45,11 +45,6 @@ You know what you need for you system, basically your appropriate analog of buil
 ```nodejs
 var ftdi = require('ftdi');
 
-ftdi.find(function(err, devices) {});                 // returns all ftdi devices
-
-ftdi.find(0x27f4, function(err, devices) {});         // returns all ftdi devices
-                                                      // with matching vendor id
-
 ftdi.find(0x27f4, 0x0203, function(err, devices) {}); // returns all ftdi devices with
                                                       // matching vendor and product id
 ```

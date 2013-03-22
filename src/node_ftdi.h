@@ -34,6 +34,13 @@ typedef struct
     UCHAR parity;
 } DeviceParams_t;
 
+typedef enum
+{
+    DeviceState_Idle,
+    DeviceState_Open,
+    DeviceState_Closing
+} DeviceState_t;
+
 class NodeFtdi : public ObjectWrap 
 {
     public:
@@ -74,8 +81,10 @@ class NodeFtdi : public ObjectWrap
         DeviceParams_t deviceParams;
         ConnectionParams_t connectParams;
 
-        bool isClosing;
+        DeviceState_t deviceState;
         void* syncContext;
+        uv_mutex_t closeMutex;
+        bool closed;
 };
 
 }

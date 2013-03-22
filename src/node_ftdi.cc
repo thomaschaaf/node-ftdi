@@ -95,7 +95,7 @@ void ToCString(Local<String> val, char ** ptr);
 /**********************************
  * Local Variables
  **********************************/
-static uv_mutex_t writeMutex;
+static uv_mutex_t libraryMutex;
 
 
 /*****************************
@@ -104,7 +104,7 @@ static uv_mutex_t writeMutex;
 
 NodeFtdi::NodeFtdi() 
 {
-    isClosing = false;
+    deviceState = DeviceState_Idle;
 };
 
 NodeFtdi::~NodeFtdi() 
@@ -129,7 +129,7 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target)
     Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
     target->Set(String::NewSymbol("FtdiDevice"), constructor);
 
-    uv_mutex_init(&writeMutex);
+    uv_mutex_init(&libraryMutex);
 }
 
 Handle<Value> NodeFtdi::New(const Arguments& args) 
@@ -194,6 +194,7 @@ Handle<Value> NodeFtdi::Open(const Arguments& args)
 
     // Get Object
     NodeFtdi* device = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+    device->deviceState = DeviceState_Open;
 
     if (args.Length() != 3) 
     {
@@ -297,9 +298,14 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
 
 FT_STATUS NodeFtdi::OpenDevice()
 {
+    FT_STATUS status;
+
     if(connectParams.connectType == ConnectType_ByIndex)
     {
-        return FT_Open(connectParams.connectId, &ftHandle);
+        uv_mutex_lock(&libraryMutex);  
+        status = FT_Open(connectParams.connectId, &ftHandle);
+        uv_mutex_unlock(&libraryMutex);  
+        return status;
     }
     else
     {
@@ -336,7 +342,10 @@ FT_STATUS NodeFtdi::OpenDevice()
             }
         }
 
-        return FT_OpenEx(arg, flags, &ftHandle);
+        uv_mutex_lock(&libraryMutex);  
+        status = FT_OpenEx(arg, flags, &ftHandle);
+        uv_mutex_unlock(&libraryMutex);  
+        return status;
     }
 
     return FT_INVALID_PARAMETER;
@@ -356,25 +365,35 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
     while(1)
     {
         WaitForReadEvent(baton);
+        
+        // Check if we are closing the device
+        if(device->deviceState == DeviceState_Closing)
+        {
+            printf("Purge Device\r\n");
+            uv_mutex_lock(&libraryMutex);  
+            FT_Purge(device->ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+            uv_mutex_unlock(&libraryMutex);  
+            return;
+        }
 
+        // Check Queue Status
+        uv_mutex_lock(&libraryMutex);  
         FT_GetQueueStatus(device->ftHandle, &RxBytes);
+        uv_mutex_unlock(&libraryMutex);  
 
         if(RxBytes > 0)
         {
             baton->data = (uint8_t *)malloc(RxBytes);
 
+            uv_mutex_lock(&libraryMutex);  
             ftStatus = FT_Read(device->ftHandle, baton->data, RxBytes, &BytesReceived);
+            uv_mutex_unlock(&libraryMutex);  
             if (ftStatus != FT_OK) 
             {
                 fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
             }
             baton->length = BytesReceived;
-            break;
-        }
-
-        if(device->isClosing)
-        {
-            break;
+            return;
         }
     }
 }
@@ -408,7 +427,7 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
         baton->length = 0;
     }
 
-    if(device->isClosing)
+    if(device->deviceState == DeviceState_Closing)
     {
         uv_mutex_unlock((uv_mutex_t *) device->syncContext);
         baton->callback.Dispose();
@@ -467,9 +486,9 @@ void NodeFtdi::WriteAsync(uv_work_t* req)
     WriteBaton_t* baton = static_cast<WriteBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
 
-    uv_mutex_lock(&writeMutex);  
+    uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_Write(device->ftHandle, baton->data, baton->length, &bytesWritten);
-    uv_mutex_unlock(&writeMutex);  
+    uv_mutex_unlock(&libraryMutex);  
 
     baton->status = ftStatus;
 }
@@ -508,21 +527,32 @@ Handle<Value> NodeFtdi::Close(const Arguments& args)
 
     // Get Object
     NodeFtdi* device = ObjectWrap::Unwrap<NodeFtdi>(args.This());
-    CloseBaton_t* baton = new CloseBaton_t();
 
-    // callback
-    if(args[0]->IsFunction()) 
+    if(device->deviceState != DeviceState_Open)
     {
-        Local<Value> writeCallback = args[0];
-        baton->callback = Persistent<Value>::New(writeCallback);
+        // callback
+        if(args[0]->IsFunction()) 
+        {
+            Handle<Value> argv[1];
+            argv[0] = String::New(FT_STATUS_CUSTOM_ALREADY_CLOSING);
+            Function::Cast(*args[0])->Call(Context::GetCurrent()->Global(), 1, argv);
+        }
     }
+    else
+    {
+        CloseBaton_t* baton = new CloseBaton_t();
+        baton->device = device;
 
-    baton->device = device;
+         // callback
+        if(args[0]->IsFunction()) 
+        {
+            baton->callback = Persistent<Value>::New(args[0]);
+        }
 
-    uv_work_t* req = new uv_work_t();
-    req->data = baton;
-    uv_queue_work(uv_default_loop(), req, NodeFtdi::CloseAsync, (uv_after_work_cb)NodeFtdi::CloseFinished);
-
+        uv_work_t* req = new uv_work_t();
+        req->data = baton;
+        uv_queue_work(uv_default_loop(), req, NodeFtdi::CloseAsync, (uv_after_work_cb)NodeFtdi::CloseFinished);
+    }
     return scope.Close(v8::Undefined());
 }
 
@@ -533,18 +563,23 @@ void NodeFtdi::CloseAsync(uv_work_t* req)
     NodeFtdi* device = baton->device;
 
     device->syncContext = &baton->closeMutex;
-    device->isClosing = true;
 
+    device->deviceState = DeviceState_Closing;
     uv_mutex_lock(&baton->closeMutex);
 
-    printf("Close Device\r\n");
+    uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_Close(device->ftHandle);
+    uv_mutex_unlock(&libraryMutex);  
     baton->status = ftStatus;
 }
 
 void NodeFtdi::CloseFinished(uv_work_t* req)
 {
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
+    NodeFtdi* device = baton->device;
+
+    printf("Close Finsihed\r\n");
+    device->deviceState = DeviceState_Idle;
 
     if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
     {
@@ -572,14 +607,18 @@ void NodeFtdi::CloseFinished(uv_work_t* req)
 {
     FT_STATUS ftStatus;
     
+    uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_SetDataCharacteristics(ftHandle, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
+    uv_mutex_unlock(&libraryMutex);  
     if (ftStatus != FT_OK) 
     {
         fprintf(stderr, "Can't Set FT_SetDataCharacteristics: %d\n", ftStatus);
         return ftStatus;
     }
 
+    uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_SetBaudRate(ftHandle, deviceParams.baudRate);
+    uv_mutex_unlock(&libraryMutex);  
     if (ftStatus != FT_OK) 
     {
         fprintf(stderr, "Can't setBaudRate: %d\n", ftStatus);
@@ -688,9 +727,13 @@ Handle<Value> NodeFtdi::ThrowLastError(std::string message)
 
 FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
 {
+    FT_STATUS status;
     pthread_mutex_init(&(baton->eh).eMutex, NULL);
     pthread_cond_init(&(baton->eh).eCondVar, NULL);
-    return FT_SetEventNotification(handle, EVENT_MASK, (PVOID)&(baton->eh));
+    uv_mutex_lock(&libraryMutex);  
+    status = FT_SetEventNotification(handle, EVENT_MASK, (PVOID)&(baton->eh));
+    uv_mutex_unlock(&libraryMutex);  
+    return status;
 }
 
 void WaitForReadEvent(ReadBaton_t *baton)
@@ -710,8 +753,12 @@ void WaitForReadEvent(ReadBaton_t *baton)
 #else
 FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
 {    
+    FT_STATUS status;
     baton->hEvent = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
-    return FT_SetEventNotification(handle, EVENT_MASK, baton->hEvent);
+    uv_mutex_lock(&libraryMutex);  
+    status = FT_SetEventNotification(handle, EVENT_MASK, baton->hEvent);
+    uv_mutex_unlock(&libraryMutex);  
+    return status;
 }
 
 void WaitForReadEvent(ReadBaton_t *baton)

@@ -21,7 +21,10 @@
           {
               'include_dirs+': [
                 '/usr/local/include/libftd2xx/'
-              ]
+              ],
+              'ldflags': [
+                '-Wl,-Map=output.map',
+            ],
           }
         ]
       ],

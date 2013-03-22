@@ -31,42 +31,9 @@ ftdi.find(0x18d9, 0x01a0, function(status, devices)
 		{
 			var device = new ftdi.FtdiDevice(devices[0]);
 
-			device.on('error', function(error) {console.log("Error: " + error)});
+			// setInterval(loop(device))
+			loop(device);
 
-			device.on('data', function(data)
-			{
-				console.log('Output:');
-				console.log( data );
-
-				device.close(function(status) {
-					console.log("JS Close Device");
-
-					device.on('error', function(error) {console.log("Error: " + error)});
-
-					device.on('data', function(data)
-					{
-						console.log('Output:');
-						console.log( data );
-					});
-			
-
-					device.open(connectionSettings, function(status) 
-					{
-						device.write(dataToWrite);
-					}
-					)
-				});
-			});
-
-			device.open(connectionSettings, function(status) 
-			{				
-				device.write(dataToWrite);
-
-				// setInterval(function() 
-				// {
-				// 	device.write(dataToWrite, function(status){console.log('WriteResult: ' + status);});
-				// }, 5000);});
-			});
 		}
 		else
 		{
@@ -74,7 +41,31 @@ ftdi.find(0x18d9, 0x01a0, function(status, devices)
 		}
 	});
 
+var loop = function(device)
+{
+	device.on('error', function(error) 
+		{
+			console.log("Error: " + error)
+		});
 
+	device.on('data', function(data)
+		{
+			console.log('Output: ', data.length);
+			console.log( data );
+
+			device.close(function(status) 
+			{
+				console.log("JS Close Device");
+				setTimeout(function() {loop(device);}, 200);
+				// loop(device);
+			});
+		});
+
+	device.open(connectionSettings, function(status) 
+		{
+			device.write(dataToWrite);
+		});
+}
 
 
 

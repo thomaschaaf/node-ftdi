@@ -5,6 +5,7 @@
 #include <string.h>
 #include <queue>
 #include <node_buffer.h>
+#include <uv.h>
 
 #include "ftdi_constants.h"
 #include "node_ftdi.h"
@@ -25,7 +26,7 @@ using namespace node_ftdi;
  * Local defines
  **********************************/
 #define EVENT_MASK (FT_EVENT_RXCHAR)
-#define WAIT_TIME_SECONDS       1
+#define WAIT_TIME_MILLISECONDS       1000
 
 /**********************************
  * Local typedefs
@@ -700,15 +701,15 @@ UCHAR GetStopBits(int stopBits)
 
 UCHAR GetParity(const char* string)
 {
-    if(strcasecmp(CONNECTION_PARITY_NONE, string) == 0)
+    if(strcmp(CONNECTION_PARITY_NONE, string) == 0)
     {
         return FT_PARITY_NONE;
     }
-    else if(strcasecmp(CONNECTION_PARITY_ODD, string) == 0)
+    else if(strcmp(CONNECTION_PARITY_ODD, string) == 0)
     {
         return FT_PARITY_ODD;
     }
-    else if(strcasecmp(CONNECTION_PARITY_EVEN, string) == 0)
+    else if(strcmp(CONNECTION_PARITY_EVEN, string) == 0)
     {
         return FT_PARITY_EVEN;
     }
@@ -777,7 +778,7 @@ FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
 
 void WaitForReadEvent(ReadBaton_t *baton)
 {
-    WaitForSingleObject(baton->hEvent, INFINITE);
+    WaitForSingleObject(baton->hEvent, WAIT_TIME_MILLISECONDS);
 }
 #endif
 

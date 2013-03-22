@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <ftd2xx.h>
 
 #include "ftdi_driver.h"
 #include "ftdi_constants.h"

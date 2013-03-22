@@ -374,8 +374,15 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
 
         // Check Queue Status
         uv_mutex_lock(&libraryMutex);  
-        FT_GetQueueStatus(device->ftHandle, &RxBytes);
+        ftStatus = FT_GetQueueStatus(device->ftHandle, &RxBytes);
         uv_mutex_unlock(&libraryMutex);  
+
+        if(ftStatus != FT_OK)
+        {
+            fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+            baton->status = ftStatus;
+            return;
+        }
 
         if(RxBytes > 0)
         {
@@ -388,6 +395,8 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
             {
                 fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
             }
+            
+            baton->status = ftStatus;
             baton->length = BytesReceived;
             return;
         }
@@ -400,9 +409,9 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
 
-    if(baton->length != 0 && baton->callback->IsFunction())
+    if(baton->status != FT_OK || (baton->length != 0 && baton->callback->IsFunction()))
     {
-        Handle<Value> argv[1];
+        Handle<Value> argv[2];
 
         Buffer *slowBuffer = Buffer::New(baton->length);
         memcpy(Buffer::Data(slowBuffer), baton->data, baton->length);
@@ -411,9 +420,18 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
         Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
         Handle<Value> constructorArgs[3] = { slowBuffer->handle_, Integer::New(baton->length), Integer::New(0) };
         Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
-        argv[0] = actualBuffer;
+        argv[1] = actualBuffer;
 
-        Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+        if(baton->status != FT_OK)
+        {
+            argv[0] = String::New(GetStatusString(baton->status));
+        }
+        else
+        {
+            argv[0] = Undefined();
+        }
+
+        Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 2, argv);
 
     }
 
@@ -492,9 +510,9 @@ void NodeFtdi::WriteAsync(uv_work_t* req)
 void NodeFtdi::WriteFinished(uv_work_t* req)
 {
     WriteBaton_t* baton = static_cast<WriteBaton_t*>(req->data);
-
     if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
     {
+
         Handle<Value> argv[1];
         if(baton->status != FT_OK)
         {

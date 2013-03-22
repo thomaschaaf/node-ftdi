@@ -21,7 +21,13 @@ util.inherits(FtdiDevice, EventEmitter);
 FtdiDevice.prototype.open = function(settings, callback) {
 	var self = this;
 	this.connectionSettings = settings;
-	this.FTDIDevice.open(this.connectionSettings, function(data) {
+	this.on('error', function(err) {
+		self.close();
+	});
+	this.FTDIDevice.open(this.connectionSettings, function(err, data) {
+		if (err) {
+			self.emit('error', err);
+		}
 		self.emit('data', data);
 	}, function(err) {
 		if (err) {

@@ -102,9 +102,20 @@ void FindAllFinished(uv_work_t* req)
 {
     DeviceListBaton* listBaton = static_cast<DeviceListBaton*>(req->data);
 
-    Local<Array> array= Array::New(listBaton->listLength);
+    // Determine the length of teh resulting list 
+    int resultListLength = 0;
+    for (DWORD i = 0; i < listBaton->listLength; i++) 
+    {
+        if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
+        {
+            resultListLength++;
+        }
+    }
+
+    Local<Array> array= Array::New(resultListLength);
     if(listBaton->status == FT_OK)
     {
+        int index = 0;
         for (DWORD i = 0; i < listBaton->listLength; i++) 
         {
             if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
@@ -116,7 +127,7 @@ void FindAllFinished(uv_work_t* req)
                 obj->Set(String::New(DEVICE_INDEX_TAG), Number::New(i));
                 obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
                 obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
-                array->Set(i, obj);
+                array->Set(index++, obj);
             }
         }
 

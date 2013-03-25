@@ -777,7 +777,7 @@ void WaitForReadEvent(ReadBaton_t *baton)
     baton->ts.tv_sec += additionalSeconds;
 
     pthread_mutex_lock(&(baton->eh).eMutex);
-    int rc = pthread_cond_timedwait(&(baton->eh).eCondVar, &(baton->eh).eMutex, &baton->ts);
+    pthread_cond_timedwait(&(baton->eh).eCondVar, &(baton->eh).eMutex, &baton->ts);
     pthread_mutex_unlock(&(baton->eh).eMutex);
 }
 

@@ -152,8 +152,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
         Local<Object> obj = args[0]->ToObject();
 
 // #ifndef __linux
-
-        if(obj->Has(locationId)) 
+        if(obj->Has(locationId) && obj->Get(locationId)->Int32Value() != 0) 
         {
             object->connectParams.connectId = obj->Get(locationId)->Int32Value();
             object->connectParams.connectType = ConnectType_ByLocationId;

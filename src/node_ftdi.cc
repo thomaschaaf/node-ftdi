@@ -141,6 +141,8 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     Local<String> serial = String::New(DEVICE_SERIAL_NR_TAG);
     Local<String> index = String::New(DEVICE_INDEX_TAG);
     Local<String> description = String::New(DEVICE_DESCRIPTION_TAG);
+    Local<String> vid = String::New(DEVICE_VENDOR_ID_TAG);
+    Local<String> pid = String::New(DEVICE_PRODUCT_ID_TAG);
 
     NodeFtdi* object = new NodeFtdi();
     object->connectParams.connectString = NULL;
@@ -149,12 +151,16 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     {
         Local<Object> obj = args[0]->ToObject();
 
+// #ifndef __linux
+
         if(obj->Has(locationId)) 
         {
             object->connectParams.connectId = obj->Get(locationId)->Int32Value();
             object->connectParams.connectType = ConnectType_ByLocationId;
         }
-        else if(obj->Has(serial)) 
+        else 
+// #endif            
+        if(obj->Has(serial)) 
         {
             ToCString(obj->Get(serial)->ToString(), &object->connectParams.connectString);
             object->connectParams.connectType = ConnectType_BySerial;
@@ -169,6 +175,18 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
             ToCString(obj->Get(description)->ToString(), &object->connectParams.connectString);
             object->connectParams.connectType = ConnectType_ByDescription;
         }
+
+        object->connectParams.vid = 0;
+        object->connectParams.pid = 0;
+        if(obj->Has(vid)) 
+        {
+            object->connectParams.vid = obj->Get(vid)->Int32Value();
+        }
+        if(obj->Has(pid)) 
+        {
+            object->connectParams.pid = obj->Get(pid)->Int32Value();
+        }
+        printf("Device Info [Vid: %x, Pid: %x]\r\n", object->connectParams.vid, object->connectParams.pid);
     }
     else if(args[0]->IsNumber())
     {
@@ -179,8 +197,6 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     {
         return NodeFtdi::ThrowTypeError("new expects a object as argument");
     }
-
-    printf("ConnectionType: %d\n", object->connectParams.connectType);
 
     object->Wrap(args.This());
 
@@ -304,9 +320,11 @@ FT_STATUS NodeFtdi::OpenDevice()
 
     if(connectParams.connectType == ConnectType_ByIndex)
     {
-        uv_mutex_lock(&libraryMutex);  
+        uv_mutex_lock(&libraryMutex); 
+        FT_SetVIDPID(connectParams.vid, connectParams.pid);
         status = FT_Open(connectParams.connectId, &ftHandle);
         uv_mutex_unlock(&libraryMutex);  
+        printf("OpenDeviceByIndex [Index: %d]\r\n", connectParams.connectId);
         return status;
     }
     else
@@ -318,23 +336,26 @@ FT_STATUS NodeFtdi::OpenDevice()
         {
             case ConnectType_ByDescription:
             {
-                arg = (void*) connectParams.connectString;
+                arg = (PVOID) connectParams.connectString;
                 flags = FT_OPEN_BY_DESCRIPTION;
+                printf("OpenDevice [Flag: %d, Arg: %s]\r\n", flags, (char *)arg);
             }
             break;
 
             case ConnectType_BySerial:
             {
-                arg = (void*) connectParams.connectString;
+                arg = (PVOID) connectParams.connectString;
                 flags = FT_OPEN_BY_SERIAL_NUMBER;
+                printf("OpenDevice [Flag: %d, Arg: %s]\r\n", flags, (char *)arg);
             }
             break;
 
             
             case ConnectType_ByLocationId:
             {
-                arg = (void*) connectParams.connectId;
+                arg = (PVOID) connectParams.connectId;
                 flags = FT_OPEN_BY_LOCATION;
+                printf("OpenDevice [Flag: %d, Arg: %d]\r\n", flags, (int)arg);
             }
             break;
 
@@ -344,9 +365,14 @@ FT_STATUS NodeFtdi::OpenDevice()
             }
         }
 
+        uv_mutex_lock(&vidPidMutex); 
         uv_mutex_lock(&libraryMutex);  
+#ifndef WIN32
+        FT_SetVIDPID(connectParams.vid, connectParams.pid);
+#endif
         status = FT_OpenEx(arg, flags, &ftHandle);
-        uv_mutex_unlock(&libraryMutex);  
+        uv_mutex_unlock(&libraryMutex); 
+        uv_mutex_unlock(&vidPidMutex);  
         return status;
     }
 
@@ -405,8 +431,6 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
             baton->length = BytesReceived;
             return;
         }
-
-        printf("No Close detected\r\n");
     }
 }
 

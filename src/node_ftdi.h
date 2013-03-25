@@ -24,6 +24,8 @@ typedef struct
     ConnectType_t connectType;
     char *connectString;
     int32_t connectId;
+    int pid;
+    int vid;
 } ConnectionParams_t;
 
 typedef struct 

@@ -27,13 +27,13 @@
                 {
                   'libraries': 
                   [
-                   '-l<(module_root_dir)/lib/i386/ftd2xx'
+                   '-l<(module_root_dir)/lib/i386/ftd2xx.lib'
                   ]
                 }
               ],
               ["target_arch=='x64'", {
                 'libraries': [
-                   '-l<(module_root_dir)/lib/amd64/ftd2xx'
+                   '-l<(module_root_dir)/lib/amd64/ftd2xx.lib'
                 ]
               }]
             ]

@@ -42,7 +42,7 @@ setInterval(function() {
       });
     }
   });
-}, 1000);
+}, 5000);
 
 setInterval(function() {
   if (isBnet9107Polling) return;
@@ -54,9 +54,9 @@ setInterval(function() {
     console.log(new Date(), ' "BNET9107": -- find FINISHED -- ');
     console.log(arguments);
 
-    if (!chw4000Connected && devices.length > 0) {
+    if (!bnet9107Connected && devices.length > 0) {
       var device = new ftdi.FtdiDevice(devices[0]);
-      chw4000Connected = true;
+      bnet9107Connected = true;
 
       device.on('error', function() {
       });
@@ -80,4 +80,4 @@ setInterval(function() {
       });
     }
   });
-}, 1000);
+}, 5000);

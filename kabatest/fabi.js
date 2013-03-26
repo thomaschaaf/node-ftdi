@@ -56,7 +56,7 @@ var loop = function(device)
 			device.close(function(status) 
 			{
 				console.log("JS Close Device");
-				setTimeout(function() {loop(device);}, 200);
+				setTimeout(function() {loop(device);}, 5000);
 				// loop(device);
 			});
 		});

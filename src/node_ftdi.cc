@@ -320,7 +320,9 @@ FT_STATUS NodeFtdi::OpenDevice()
     if(connectParams.connectType == ConnectType_ByIndex)
     {
         uv_mutex_lock(&libraryMutex); 
+#ifndef WIN32
         FT_SetVIDPID(connectParams.vid, connectParams.pid);
+#endif
         status = FT_Open(connectParams.connectId, &ftHandle);
         uv_mutex_unlock(&libraryMutex);  
         printf("OpenDeviceByIndex [Index: %d]\r\n", connectParams.connectId);

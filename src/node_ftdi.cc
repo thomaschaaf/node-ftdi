@@ -356,7 +356,7 @@ FT_STATUS NodeFtdi::OpenDevice()
             {
                 arg = (PVOID) connectParams.connectId;
                 flags = FT_OPEN_BY_LOCATION;
-                printf("OpenDevice [Flag: %d, Arg: %d]\r\n", flags, (int)arg);
+                printf("OpenDevice [Flag: %d, Arg: %d]\r\n", flags, connectParams.connectId);
             }
             break;
 

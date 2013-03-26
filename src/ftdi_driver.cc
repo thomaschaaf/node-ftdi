@@ -31,7 +31,7 @@ bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVi
  * Local Variables
  **********************************/
 uv_mutex_t libraryMutex;
-static uv_mutex_t listMutex;
+uv_mutex_t vidPidMutex;
 
 
 
@@ -51,7 +51,7 @@ void InitializeList(Handle<Object> target)
     NODE_SET_METHOD(constructor_template, "findAll", FindAll);
     target->Set(String::NewSymbol("FtdiDriver"), constructor_template->GetFunction());
 
-    uv_mutex_init(&listMutex);
+    uv_mutex_init(&vidPidMutex);
 }
 
 void FindAllAsync(uv_work_t* req)
@@ -62,13 +62,13 @@ void FindAllAsync(uv_work_t* req)
     DWORD numDevs = 0;
 
     // create the device information list
-    uv_mutex_lock(&listMutex);
+    uv_mutex_lock(&vidPidMutex);
 
 #ifndef WIN32
     if(listBaton->vid != 0 && listBaton->pid != 0)
     {
         uv_mutex_lock(&libraryMutex);  
-        FT_SetVIDPID(listBaton->vid, listBaton->pid);
+        ftStatus = FT_SetVIDPID(listBaton->vid, listBaton->pid);
         uv_mutex_unlock(&libraryMutex);  
     }
 #endif
@@ -92,7 +92,7 @@ void FindAllAsync(uv_work_t* req)
             }
         }
     }
-    uv_mutex_unlock(&listMutex);  
+    uv_mutex_unlock(&vidPidMutex);  
 
     listBaton->listLength = numDevs;              
     listBaton->status = ftStatus;
@@ -102,19 +102,25 @@ void FindAllFinished(uv_work_t* req)
 {
     DeviceListBaton* listBaton = static_cast<DeviceListBaton*>(req->data);
 
-    // Determine the length of teh resulting list 
-    int resultListLength = 0;
-    for (DWORD i = 0; i < listBaton->listLength; i++) 
-    {
-        if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
-        {
-            resultListLength++;
-        }
-    }
+    // printf("Num DevFound: %d\r\n", listBaton->listLength);
 
-    Local<Array> array= Array::New(resultListLength);
+    Handle<Value> argv[2];
+
     if(listBaton->status == FT_OK)
     {
+        // Determine the length of the resulting list 
+        int resultListLength = 0;
+        for (DWORD i = 0; i < listBaton->listLength; i++) 
+        {
+            // printf("\tFound: %s [Flag: %x], BatonVid: %x, BatonPid: %x\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].Flags, listBaton->vid, listBaton->pid);
+            if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
+            {
+                resultListLength++;
+            }
+        }
+
+        Local<Array> array= Array::New(resultListLength);
+        
         int index = 0;
         for (DWORD i = 0; i < listBaton->listLength; i++) 
         {
@@ -127,16 +133,20 @@ void FindAllFinished(uv_work_t* req)
                 obj->Set(String::New(DEVICE_INDEX_TAG), Number::New(i));
                 obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
                 obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
+                // printf("DevFound: [Descr: %s, Loc: %d]\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].LocId);
                 array->Set(index++, obj);
             }
         }
 
         free(listBaton->devInfo);
-    }
 
-    Handle<Value> argv[2];
+        argv[1] = array;
+    }
+    else
+    {
+        argv[1] = Undefined();
+    }
     argv[0] = Number::New(listBaton->status);
-    argv[1] = array;
 
     Function::Cast(*listBaton->callback)->Call(Context::GetCurrent()->Global(), 2, argv);
 }

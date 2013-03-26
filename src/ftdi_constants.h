@@ -41,6 +41,7 @@
 
 // Lock for Library Calls
 extern uv_mutex_t libraryMutex;
+extern uv_mutex_t vidPidMutex;
 
 static const char * error_strings[] = {
 	FT_STATUS_0,

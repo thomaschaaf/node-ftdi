@@ -6,7 +6,6 @@
 using namespace v8;
 using namespace node;
 
-
 /**********************************
  * Local typedefs
  **********************************/
@@ -18,6 +17,11 @@ struct DeviceListBaton
     FT_STATUS status;
     int vid;
     int pid;
+
+    DeviceListBaton()
+    {
+        devInfo = NULL;
+    }
 };
 
 
@@ -25,6 +29,7 @@ struct DeviceListBaton
  * Local Helper Functions protoypes
  **********************************/
 bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVid, int filterPid);
+
 
 
 /**********************************
@@ -61,7 +66,7 @@ void FindAllAsync(uv_work_t* req)
     FT_STATUS ftStatus;
     DWORD numDevs = 0;
 
-    // create the device information list
+    // Lock Readout
     uv_mutex_lock(&vidPidMutex);
 
 #ifndef WIN32
@@ -72,12 +77,13 @@ void FindAllAsync(uv_work_t* req)
         uv_mutex_unlock(&libraryMutex);  
     }
 #endif
-
+    // create the device information list
     uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_CreateDeviceInfoList(&numDevs);
     uv_mutex_unlock(&libraryMutex);
     if (ftStatus == FT_OK) 
     {
+        //printf("NumDevices: %d\r\n", numDevs);
         if (numDevs > 0) 
         {
             // allocate storage for list based on numDevs
@@ -86,10 +92,12 @@ void FindAllAsync(uv_work_t* req)
             uv_mutex_lock(&libraryMutex);
             ftStatus = FT_GetDeviceInfoList(listBaton->devInfo, &numDevs); 
             uv_mutex_unlock(&libraryMutex);
-            if (ftStatus != FT_OK) 
-            {
-                 free(listBaton->devInfo);
-            }
+
+            // for(int i = 0; i < numDevs; i++)
+            // {
+            //     printf("%s\r\n", listBaton->devInfo[i].Description);
+            //     printf("ID: %d\r\n", listBaton->devInfo[i].ID);
+            // }
         }
     }
     uv_mutex_unlock(&vidPidMutex);  
@@ -102,17 +110,18 @@ void FindAllFinished(uv_work_t* req)
 {
     DeviceListBaton* listBaton = static_cast<DeviceListBaton*>(req->data);
 
-    // printf("Num DevFound: %d\r\n", listBaton->listLength);
+    //printf("Num DevFound: %d, status: %d\r\n", listBaton->listLength, listBaton->status);
 
     Handle<Value> argv[2];
 
     if(listBaton->status == FT_OK)
     {
+        //printf("ListLength: %d\n", listBaton->listLength);
         // Determine the length of the resulting list 
         int resultListLength = 0;
         for (DWORD i = 0; i < listBaton->listLength; i++) 
         {
-            // printf("\tFound: %s [Flag: %x], BatonVid: %x, BatonPid: %x\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].Flags, listBaton->vid, listBaton->pid);
+             //printf("\tFound: %s [Flag: %x], BatonVid: %x, BatonPid: %x\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].Flags, listBaton->vid, listBaton->pid);
             if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
             {
                 resultListLength++;
@@ -133,12 +142,10 @@ void FindAllFinished(uv_work_t* req)
                 obj->Set(String::New(DEVICE_INDEX_TAG), Number::New(i));
                 obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
                 obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
-                // printf("DevFound: [Descr: %s, Loc: %d]\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].LocId);
+                //printf("DevFound: [Descr: %s, Loc: %d]\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].LocId);
                 array->Set(index++, obj);
             }
         }
-
-        free(listBaton->devInfo);
 
         argv[1] = array;
     }
@@ -149,6 +156,11 @@ void FindAllFinished(uv_work_t* req)
     argv[0] = Number::New(listBaton->status);
 
     Function::Cast(*listBaton->callback)->Call(Context::GetCurrent()->Global(), 2, argv);
+
+    if(listBaton->devInfo != NULL)
+    {
+        free(listBaton->devInfo);
+    }
 }
 
 Handle<Value> FindAll(const Arguments& args) 
@@ -206,3 +218,4 @@ bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVi
     }
     return true;
 }
+

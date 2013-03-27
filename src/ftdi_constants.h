@@ -2,7 +2,7 @@
 #define FTDI_CONSTANTS_H
 
 #define DEVICE_DESCRIPTION_TAG		"description"
-#define DEVICE_SERIAL_NR_TAG		"serial"
+#define DEVICE_SERIAL_NR_TAG		"serialNumber"
 #define DEVICE_LOCATION_ID_TAG		"locationId"
 #define DEVICE_VENDOR_ID_TAG		"vendorId"
 #define DEVICE_PRODUCT_ID_TAG		"productId"

@@ -39,7 +39,7 @@
             ]
           }
         }],
-        ['OS != "win"',
+        ['OS == "linux"',
           {
             'include_dirs+': [
               '/usr/include/libftdi1/'
@@ -50,6 +50,21 @@
             'link_settings': {
               'libraries': [
                 '-lftdi1'
+              ]
+            }
+          }
+        ],
+        ['OS == "mac"',
+          {
+            'include_dirs+': [
+              '/usr/include/libftdi1/'
+            ],
+            'ldflags': [
+              '-Wl,-Map=output.map',
+            ],
+            'link_settings': {
+              'libraries': [
+                '-lftdi'
               ]
             }
           }

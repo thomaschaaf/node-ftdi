@@ -1,7 +1,7 @@
 var ftdi = require('../index');
 
 ftdi.find(0x27f4, 0x0203, function(err, devices) {
-  var device = new FtdiDevice(devices[0]);
+  var device = new ftdi.FtdiDevice(devices[0]);
   // or
   // var device = new ftdi.FtdiPort(serialnumber, locationId);
   // or
@@ -27,9 +27,11 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
     parity: 'none'
   }, function(err) {console.log(arguments);
 
-    device.write([0x04, 0x00, 0x02, 0x79, 0x40], function(err) {
+    setInterval(function() {
+      device.write([0x04, 0x00, 0x02, 0x79, 0x40], function(err) {
 
-    });
+      });
+    }, 500);
 
   });
 

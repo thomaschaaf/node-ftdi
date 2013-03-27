@@ -4,6 +4,11 @@ var util = require('util'),
 		FTDIDriver = ftdi.FtdiDriver,
     FTDIDevice = ftdi.FtdiDevice;
 
+/**
+ * FtdiDevice represents your physical device.
+ * On error 'error' will be emitted.
+ * @param {Object || Number} settings The device settings (locationId, serial, index, description).
+ */
 function FtdiDevice(settings) {
 	if (typeof(settings) === 'number') {
 		settings = { index: settings };
@@ -18,6 +23,13 @@ function FtdiDevice(settings) {
 
 util.inherits(FtdiDevice, EventEmitter);
 
+/**
+ * The open mechanism of the device.
+ * On opened 'open' will be emitted and the callback will be called.
+ * On error 'error' will be emitted and the callback will be called.
+ * @param  {Function} callback The function, that will be called when device is opened. [optional]
+ *                             `function(err){}`
+ */
 FtdiDevice.prototype.open = function(settings, callback) {
 	var self = this;
 	this.connectionSettings = settings;
@@ -39,6 +51,13 @@ FtdiDevice.prototype.open = function(settings, callback) {
 	});
 };
 
+/**
+ * The write mechanism.
+ * @param  {Array || Buffer} data     The data, that should be sent to device.
+ * On error 'error' will be emitted and the callback will be called.
+ * @param  {Function}        callback The function, that will be called when data is sent. [optional]
+ *                                    `function(err){}`
+ */
 FtdiDevice.prototype.write = function(data, callback) {
 	if (!Buffer.isBuffer(data)) {
     data = new Buffer(data);
@@ -52,6 +71,13 @@ FtdiDevice.prototype.write = function(data, callback) {
 	});
 };
 
+/**
+ * The close mechanism of the device.
+ * On closed 'close' will be emitted and the callback will be called.
+ * On error 'error' will be emitted and the callback will be called.
+ * @param  {Function} callback The function, that will be called when device is closed. [optional]
+ *                             `function(err){}`
+ */
 FtdiDevice.prototype.close = function(callback) {
 	var self = this;
 	this.FTDIDevice.close(function(err) {
@@ -69,6 +95,13 @@ module.exports = {
 
 	FtdiDevice: FtdiDevice,
 
+	/**
+	 * Calls the callback with an array of found devices.
+	 * @param  {Number}   vid      The vendor id. [optional]
+	 * @param  {Number}   pid      The product id. [optional]
+	 * @param  {Function} callback The function, that will be called when finished finding.
+	 *                             `function(err, devices){}` devices is an array of device objects.
+	 */
 	find: function(vid, pid, callback) {
 		if (arguments.length === 2) {
 			callback = pid;

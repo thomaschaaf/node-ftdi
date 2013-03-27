@@ -3,7 +3,7 @@
 
 #include <v8.h>
 #include <node.h>
-#include <ftd2xx.h>
+#include <ftdi.h>
 
 using namespace v8;
 using namespace node;

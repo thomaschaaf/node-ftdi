@@ -6,21 +6,36 @@
 using namespace v8;
 using namespace node;
 
+#define DEVICE_INFO_STRING_LENGTH 128
+
 /**********************************
  * Local typedefs
  **********************************/
+struct DeviceInfo
+{
+    char description[DEVICE_INFO_STRING_LENGTH];
+    char manufacturer[DEVICE_INFO_STRING_LENGTH];
+    char serial[DEVICE_INFO_STRING_LENGTH];
+    struct DeviceInfo *next;
+
+    DeviceInfo()
+    {
+        next = NULL;
+    }
+};
+
 struct DeviceListBaton
 {
     Persistent<Value> callback;
-    FT_DEVICE_LIST_INFO_NODE *devInfo;
-    DWORD listLength;
-    FT_STATUS status;
+    struct DeviceInfo *devInfoList;
+    int listLength;
+    int status;
     int vid;
     int pid;
 
     DeviceListBaton()
     {
-        devInfo = NULL;
+        devInfoList = NULL;
     }
 };
 
@@ -28,7 +43,6 @@ struct DeviceListBaton
 /**********************************
  * Local Helper Functions protoypes
  **********************************/
-bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVid, int filterPid);
 
 
 
@@ -63,88 +77,83 @@ void FindAllAsync(uv_work_t* req)
 {
     DeviceListBaton* listBaton = static_cast<DeviceListBaton*>(req->data);
 
-    FT_STATUS ftStatus;
-    DWORD numDevs = 0;
+    int ret;
+    int numDevices;
+    struct ftdi_context *ftdi;
+    struct ftdi_device_list *devlist, *curdev;
+    int retval = EXIT_SUCCESS;
 
     // Lock Readout
     uv_mutex_lock(&vidPidMutex);
-
-#ifndef WIN32
-    if(listBaton->vid != 0 && listBaton->pid != 0)
+    if ((ftdi = ftdi_new()) == 0)
     {
-        uv_mutex_lock(&libraryMutex);  
-        ftStatus = FT_SetVIDPID(listBaton->vid, listBaton->pid);
-        uv_mutex_unlock(&libraryMutex);  
+        fprintf(stderr, "ftdi_new failed\n");
+        retval = EXIT_FAILURE;
     }
-#endif
-    // create the device information list
-    uv_mutex_lock(&libraryMutex);  
-    ftStatus = FT_CreateDeviceInfoList(&numDevs);
-    uv_mutex_unlock(&libraryMutex);
-    if (ftStatus == FT_OK) 
-    {
-        //printf("NumDevices: %d\r\n", numDevs);
-        if (numDevs > 0) 
-        {
-            // allocate storage for list based on numDevs
-            listBaton->devInfo =  (FT_DEVICE_LIST_INFO_NODE*) malloc(sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs); 
-            // get the device information list
-            uv_mutex_lock(&libraryMutex);
-            ftStatus = FT_GetDeviceInfoList(listBaton->devInfo, &numDevs); 
-            uv_mutex_unlock(&libraryMutex);
 
-            // for(int i = 0; i < numDevs; i++)
-            // {
-            //     printf("%s\r\n", listBaton->devInfo[i].Description);
-            //     printf("ID: %d\r\n", listBaton->devInfo[i].ID);
-            // }
+    ftdi_set_interface(ftdi, INTERFACE_ANY);
+    if ((numDevices = ftdi_usb_find_all(ftdi, &devlist, listBaton->vid, listBaton->pid)) < 0)
+    {
+        fprintf(stderr, "ftdi_usb_find_all failed: %d (%s)\n", numDevices, ftdi_get_error_string(ftdi));
+        retval =  EXIT_FAILURE;
+    }
+
+    printf("Number of FTDI devices found: %d\n", numDevices);
+
+    if(retval != EXIT_FAILURE)
+    {
+        listBaton->devInfoList = new DeviceInfo();
+        DeviceInfo * currentItem = listBaton->devInfoList;
+        for (curdev = devlist; curdev != NULL; )
+        {
+            if(currentItem == NULL)
+            {
+                currentItem = new DeviceInfo();
+            }
+
+            if ((ret = ftdi_usb_get_strings(ftdi, curdev->dev, currentItem->manufacturer, DEVICE_INFO_STRING_LENGTH, currentItem->description, DEVICE_INFO_STRING_LENGTH, currentItem->serial, DEVICE_INFO_STRING_LENGTH)) < 0)
+            {
+                fprintf(stderr, "ftdi_usb_get_strings failed: %d (%s)\n", ret, ftdi_get_error_string(ftdi));
+                retval = EXIT_FAILURE;
+            }
+            curdev = curdev->next;
+            currentItem = currentItem->next;
         }
     }
+
+    ftdi_list_free(&devlist);
+    ftdi_free(ftdi);
     uv_mutex_unlock(&vidPidMutex);  
 
-    listBaton->listLength = numDevs;              
-    listBaton->status = ftStatus;
+    listBaton->listLength = numDevices;              
+    listBaton->status = retval;
 }
 
 void FindAllFinished(uv_work_t* req)
 {
     DeviceListBaton* listBaton = static_cast<DeviceListBaton*>(req->data);
 
-    //printf("Num DevFound: %d, status: %d\r\n", listBaton->listLength, listBaton->status);
-
     Handle<Value> argv[2];
 
-    if(listBaton->status == FT_OK)
+    if(listBaton->status == 0 && listBaton->listLength > 0)
     {
-        //printf("ListLength: %d\n", listBaton->listLength);
-        // Determine the length of the resulting list 
-        int resultListLength = 0;
-        for (DWORD i = 0; i < listBaton->listLength; i++) 
-        {
-             //printf("\tFound: %s [Flag: %x], BatonVid: %x, BatonPid: %x\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].Flags, listBaton->vid, listBaton->pid);
-            if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
-            {
-                resultListLength++;
-            }
-        }
 
-        Local<Array> array= Array::New(resultListLength);
+        Local<Array> array= Array::New(listBaton->listLength);
         
+        DeviceInfo * currentItem;
         int index = 0;
-        for (DWORD i = 0; i < listBaton->listLength; i++) 
+        for (currentItem = listBaton->devInfoList; currentItem != NULL; ) 
         {
-            if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
-            {
-                Local<Object> obj = Object::New();
-                obj->Set(String::New(DEVICE_DESCRIPTION_TAG), String::New(listBaton->devInfo[i].Description));
-                obj->Set(String::New(DEVICE_SERIAL_NR_TAG), String::New(listBaton->devInfo[i].SerialNumber));
-                obj->Set(String::New(DEVICE_LOCATION_ID_TAG), Number::New(listBaton->devInfo[i].LocId));
-                obj->Set(String::New(DEVICE_INDEX_TAG), Number::New(i));
-                obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
-                obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
-                //printf("DevFound: [Descr: %s, Loc: %d]\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].LocId);
-                array->Set(index++, obj);
-            }
+            Local<Object> obj = Object::New();
+            obj->Set(String::New(DEVICE_DESCRIPTION_TAG), String::New(currentItem->description));
+            obj->Set(String::New(DEVICE_SERIAL_NR_TAG), String::New(currentItem->serial));
+            obj->Set(String::New(DEVICE_LOCATION_ID_TAG), String::New(currentItem->manufacturer));
+            obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New(listBaton->vid));
+            obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New(listBaton->pid));
+            array->Set(index++, obj);
+            DeviceInfo * temp = currentItem;
+            currentItem = currentItem->next;
+            delete temp;
         }
 
         argv[1] = array;
@@ -157,10 +166,7 @@ void FindAllFinished(uv_work_t* req)
 
     Function::Cast(*listBaton->callback)->Call(Context::GetCurrent()->Global(), 2, argv);
 
-    if(listBaton->devInfo != NULL)
-    {
-        free(listBaton->devInfo);
-    }
+    delete listBaton;
 }
 
 Handle<Value> FindAll(const Arguments& args) 
@@ -198,24 +204,3 @@ Handle<Value> FindAll(const Arguments& args)
 
     return scope.Close(v8::Undefined());
 }
-
-bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVid, int filterPid)
-{
-    int devVid = (devInfo->ID >> 16) & (0xFFFF);
-    int devPid = (devInfo->ID) & (0xFFFF); 
-
-    if(filterVid == 0 && filterPid == 0)
-    {
-        return true;
-    }
-    if(filterVid != 0 && filterVid != devVid)
-    {
-        return false;
-    }
-    if(filterPid != 0 && filterPid != devPid)
-    {
-        return false;
-    }
-    return true;
-}
-

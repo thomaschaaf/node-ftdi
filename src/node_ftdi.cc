@@ -25,6 +25,8 @@ using namespace node_ftdi;
 /**********************************
  * Local defines
  **********************************/
+#define READ_BUFFER_SIZE    64
+
 #define EVENT_MASK (FT_EVENT_RXCHAR)
 #define WAIT_TIME_MILLISECONDS      500
 
@@ -40,39 +42,32 @@ typedef struct
     NodeFtdi* device;
     Persistent<Value> callback; 
     Persistent<Value> readCallback; 
-    FT_STATUS status;
+    int status;
 } OpenBaton_t;
 
 typedef struct
 {
     NodeFtdi* device;
-#ifndef WIN32
-    EVENT_HANDLE eh;
-    struct timespec ts;
-    struct timeval tp;
-#else
-    HANDLE hEvent;
-#endif
-    uint8_t* data;
-    DWORD length;
+    uint8_t data[READ_BUFFER_SIZE];
+    int length;
     Persistent<Value> callback;
-    FT_STATUS status;
+    int status;
 } ReadBaton_t;
 
 typedef struct  
 {
     NodeFtdi* device;
     uint8_t* data;
-    DWORD length;
+    int length;
     Persistent<Value> callback;
-    FT_STATUS status;
+    int status;
 } WriteBaton_t;
 
 typedef struct CloseBaton_t
 {
     NodeFtdi* device;
     Persistent<Value> callback;
-    FT_STATUS status;
+    int status;
     uv_mutex_t closeMutex;
 
     CloseBaton_t()
@@ -87,12 +82,9 @@ typedef struct CloseBaton_t
 /**********************************
  * Local Helper Functions protoypes
  **********************************/
-FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle);
-void WaitForReadEvent(ReadBaton_t *baton);
-
-UCHAR GetWordLength(int wordLength);
-UCHAR GetStopBits(int stopBits);
-UCHAR GetParity(const char* string);
+ftdi_bits_type GetWordLength(int wordLength);
+ftdi_stopbits_type GetStopBits(int stopBits);
+ftdi_parity_type GetParity(const char* string);
 
 void ToCString(Local<String> val, char ** ptr);
 
@@ -113,9 +105,13 @@ NodeFtdi::NodeFtdi()
 
 NodeFtdi::~NodeFtdi() 
 {
-    if(connectParams.connectString != NULL)
+    if(connectParams.description != NULL)
     {
-        free(connectParams.connectString);
+        free(connectParams.description);
+    }
+    if(connectParams.serial != NULL)
+    {
+        free(connectParams.serial);
     }
 };
 
@@ -137,46 +133,28 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target)
 Handle<Value> NodeFtdi::New(const Arguments& args) 
 {
     HandleScope scope;
-    Local<String> locationId = String::New(DEVICE_LOCATION_ID_TAG);
     Local<String> serial = String::New(DEVICE_SERIAL_NR_TAG);
-    Local<String> index = String::New(DEVICE_INDEX_TAG);
     Local<String> description = String::New(DEVICE_DESCRIPTION_TAG);
     Local<String> vid = String::New(DEVICE_VENDOR_ID_TAG);
     Local<String> pid = String::New(DEVICE_PRODUCT_ID_TAG);
 
     NodeFtdi* object = new NodeFtdi();
-    object->connectParams.connectString = NULL;
 
     if(args[0]->IsObject()) 
     {
         Local<Object> obj = args[0]->ToObject();
 
-// #ifndef __linux
-        if(obj->Has(locationId) && obj->Get(locationId)->Int32Value() != 0) 
-        {
-            object->connectParams.connectId = obj->Get(locationId)->Int32Value();
-            object->connectParams.connectType = ConnectType_ByLocationId;
-        }
-        else 
-// #endif            
-        if(obj->Has(serial)) 
-        {
-            ToCString(obj->Get(serial)->ToString(), &object->connectParams.connectString);
-            object->connectParams.connectType = ConnectType_BySerial;
-        }
-        else if(obj->Has(index)) 
-        {
-            object->connectParams.connectId = obj->Get(index)->Int32Value();
-            object->connectParams.connectType = ConnectType_ByIndex;
-        }
-        else if(obj->Has(description)) 
-        {
-            ToCString(obj->Get(description)->ToString(), &object->connectParams.connectString);
-            object->connectParams.connectType = ConnectType_ByDescription;
-        }
-
         object->connectParams.vid = 0;
         object->connectParams.pid = 0;
+
+        if(obj->Has(serial)) 
+        {
+            ToCString(obj->Get(serial)->ToString(), &object->connectParams.serial);
+        }
+        if(obj->Has(description)) 
+        {
+            ToCString(obj->Get(description)->ToString(), &object->connectParams.description);
+        }
         if(obj->Has(vid)) 
         {
             object->connectParams.vid = obj->Get(vid)->Int32Value();
@@ -186,11 +164,6 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
             object->connectParams.pid = obj->Get(pid)->Int32Value();
         }
         printf("Device Info [Vid: %x, Pid: %x]\r\n", object->connectParams.vid, object->connectParams.pid);
-    }
-    else if(args[0]->IsNumber())
-    {
-        object->connectParams.connectId = (int) args[0]->NumberValue();
-        object->connectParams.connectType = ConnectType_ByIndex;
     }
     else
     {
@@ -255,25 +228,25 @@ Handle<Value> NodeFtdi::Open(const Arguments& args)
 
 void NodeFtdi::OpenAsync(uv_work_t* req)
 {
-    FT_STATUS ftStatus;
+    int status;
     OpenBaton_t* baton = static_cast<OpenBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
 
-    ftStatus = device->OpenDevice();
-    if (ftStatus != FT_OK) 
+    status = device->OpenDevice();
+    if (status != 0) 
     {
-        fprintf(stderr, "Can't open ftdi device: %d\n", ftStatus);
+        fprintf(stderr, "Can't open ftdi device: %d\n", status);
     }
     else
     {
-        ftStatus = device->SetDeviceSettings();
-        if (ftStatus != FT_OK) 
+        status = device->SetDeviceSettings();
+        if (status != 0) 
         {
-            fprintf(stderr, "Can't Set DeviceSettings: %d\n", ftStatus);
+            fprintf(stderr, "Can't Set DeviceSettings: %d\n", status);
         }
     }
 
-    baton->status = ftStatus;
+    baton->status = status;
 }
 
 void NodeFtdi::OpenFinished(uv_work_t* req)
@@ -281,13 +254,13 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
     OpenBaton_t* baton = static_cast<OpenBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
  
-    if(baton->status == FT_OK)
+    if(baton->status == 0)
     {
         ReadBaton_t* readBaton = new ReadBaton_t();
-        PrepareAsyncRead(readBaton, device->ftHandle);
         readBaton->device = device;
         readBaton->callback = baton->readCallback;
 
+        ftdi_set_latency_timer(device->ftdi, 255);
         uv_work_t* req = new uv_work_t();
         req->data = readBaton;
         uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
@@ -296,7 +269,7 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
     if(baton->callback->IsFunction())
     {
         Handle<Value> argv[1];
-        if(baton->status != FT_OK)
+        if(baton->status != 0)
         {
             argv[0] = String::New(GetStatusString(baton->status));
         }
@@ -313,71 +286,23 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
     delete baton;
 }
 
-FT_STATUS NodeFtdi::OpenDevice()
+int NodeFtdi::OpenDevice()
 {
-    FT_STATUS status;
+    int status;
 
-    if(connectParams.connectType == ConnectType_ByIndex)
+    if ((ftdi = ftdi_new()) == 0)
     {
-        uv_mutex_lock(&libraryMutex); 
-#ifndef WIN32
-        FT_SetVIDPID(connectParams.vid, connectParams.pid);
-#endif
-        status = FT_Open(connectParams.connectId, &ftHandle);
-        uv_mutex_unlock(&libraryMutex);  
-        printf("OpenDeviceByIndex [Index: %d]\r\n", connectParams.connectId);
-        return status;
-    }
-    else
-    {
-        PVOID arg;
-        DWORD flags;
-
-        switch(connectParams.connectType)
-        {
-            case ConnectType_ByDescription:
-            {
-                arg = (PVOID) connectParams.connectString;
-                flags = FT_OPEN_BY_DESCRIPTION;
-                printf("OpenDevice [Flag: %d, Arg: %s]\r\n", flags, (char *)arg);
-            }
-            break;
-
-            case ConnectType_BySerial:
-            {
-                arg = (PVOID) connectParams.connectString;
-                flags = FT_OPEN_BY_SERIAL_NUMBER;
-                printf("OpenDevice [Flag: %d, Arg: %s]\r\n", flags, (char *)arg);
-            }
-            break;
-
-            
-            case ConnectType_ByLocationId:
-            {
-                arg = (PVOID) connectParams.connectId;
-                flags = FT_OPEN_BY_LOCATION;
-                printf("OpenDevice [Flag: %d, Arg: %d]\r\n", flags, (int)arg);
-            }
-            break;
-
-            default:
-            {
-                return FT_INVALID_PARAMETER;
-            }
-        }
-
-        uv_mutex_lock(&vidPidMutex); 
-        uv_mutex_lock(&libraryMutex);  
-#ifndef WIN32
-        FT_SetVIDPID(connectParams.vid, connectParams.pid);
-#endif
-        status = FT_OpenEx(arg, flags, &ftHandle);
-        uv_mutex_unlock(&libraryMutex); 
-        uv_mutex_unlock(&vidPidMutex);  
-        return status;
+        fprintf(stderr, "ftdi_new failed\n");
+        return EXIT_FAILURE;
     }
 
-    return FT_INVALID_PARAMETER;
+    uv_mutex_lock(&libraryMutex);  
+    status = ftdi_usb_open_desc(ftdi, connectParams.vid, connectParams.pid, connectParams.description, connectParams.serial);
+    uv_mutex_unlock(&libraryMutex);
+
+    printf("Ftdi Device Type: %d\r\n", ftdi->type);
+
+    return status;
 }
 
 /*****************************
@@ -385,53 +310,19 @@ FT_STATUS NodeFtdi::OpenDevice()
  *****************************/
 void NodeFtdi::ReadDataAsync(uv_work_t* req)
 {
-    FT_STATUS ftStatus;
-    DWORD RxBytes;
-    DWORD BytesReceived;
-
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
-    while(1)
+    int status;
+
+    status = ftdi_read_data(device->ftdi, baton->data, READ_BUFFER_SIZE);
+
+    if(status >= 0)
     {
-        WaitForReadEvent(baton);
-        
-        // Check if we are closing the device
-        if(device->deviceState == DeviceState_Closing)
-        {
-            uv_mutex_lock(&libraryMutex);  
-            FT_Purge(device->ftHandle, FT_PURGE_RX | FT_PURGE_TX);
-            uv_mutex_unlock(&libraryMutex);  
-            return;
-        }
-
-        // Check Queue Status
-        uv_mutex_lock(&libraryMutex);  
-        ftStatus = FT_GetQueueStatus(device->ftHandle, &RxBytes);
-        uv_mutex_unlock(&libraryMutex);  
-
-        if(ftStatus != FT_OK)
-        {
-            fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
-            baton->status = ftStatus;
-            return;
-        }
-
-        if(RxBytes > 0)
-        {
-            baton->data = (uint8_t *)malloc(RxBytes);
-
-            uv_mutex_lock(&libraryMutex);  
-            ftStatus = FT_Read(device->ftHandle, baton->data, RxBytes, &BytesReceived);
-            uv_mutex_unlock(&libraryMutex);  
-            if (ftStatus != FT_OK) 
-            {
-                fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
-            }
-            
-            baton->status = ftStatus;
-            baton->length = BytesReceived;
-            return;
-        }
+        baton->length = status;
+    }
+    else
+    {
+        baton->status = status;
     }
 }
 
@@ -441,7 +332,7 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
 
-    if(baton->status != FT_OK || (baton->length != 0 && baton->callback->IsFunction()))
+    if(baton->status != 0 || (baton->length != 0 && baton->callback->IsFunction()))
     {
         Handle<Value> argv[2];
 
@@ -454,7 +345,7 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
         Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
         argv[1] = actualBuffer;
 
-        if(baton->status != FT_OK)
+        if(baton->status != 0)
         {
             argv[0] = String::New(GetStatusString(baton->status));
         }
@@ -467,11 +358,6 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
 
     }
 
-    if(baton->length != 0)
-    {
-        free(baton->data);
-        baton->length = 0;
-    }
 
     if(device->deviceState == DeviceState_Closing)
     {
@@ -513,7 +399,7 @@ Handle<Value> NodeFtdi::Write(const Arguments& args)
         baton->callback = Persistent<Value>::New(writeCallback);
     }
 
-    baton->length = (DWORD)Buffer::Length(buffer);
+    baton->length = (int)Buffer::Length(buffer);
     baton->data = (uint8_t*) malloc(baton->length);
     memcpy(baton->data, Buffer::Data(buffer), baton->length);
     baton->device = device;
@@ -527,16 +413,18 @@ Handle<Value> NodeFtdi::Write(const Arguments& args)
 
 void NodeFtdi::WriteAsync(uv_work_t* req)
 {
-    FT_STATUS ftStatus;
-    DWORD bytesWritten;
+    int status;
     WriteBaton_t* baton = static_cast<WriteBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
 
     uv_mutex_lock(&libraryMutex);  
-    ftStatus = FT_Write(device->ftHandle, baton->data, baton->length, &bytesWritten);
+    status = ftdi_write_data(device->ftdi, baton->data, baton->length);
     uv_mutex_unlock(&libraryMutex);  
 
-    baton->status = ftStatus;
+    if(status < 0)
+    {
+        baton->status = status;
+    }
 }
 
 void NodeFtdi::WriteFinished(uv_work_t* req)
@@ -546,7 +434,7 @@ void NodeFtdi::WriteFinished(uv_work_t* req)
     {
 
         Handle<Value> argv[1];
-        if(baton->status != FT_OK)
+        if(baton->status != 0)
         {
             argv[0] = String::New(GetStatusString(baton->status));
         }
@@ -604,7 +492,6 @@ Handle<Value> NodeFtdi::Close(const Arguments& args)
 
 void NodeFtdi::CloseAsync(uv_work_t* req)
 {
-    FT_STATUS ftStatus;
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
 
@@ -614,9 +501,9 @@ void NodeFtdi::CloseAsync(uv_work_t* req)
     uv_mutex_lock(&baton->closeMutex);
 
     uv_mutex_lock(&libraryMutex);  
-    ftStatus = FT_Close(device->ftHandle);
+    baton->status = ftdi_usb_close(device->ftdi);
+    ftdi_free(device->ftdi);
     uv_mutex_unlock(&libraryMutex);  
-    baton->status = ftStatus;
 }
 
 void NodeFtdi::CloseFinished(uv_work_t* req)
@@ -630,7 +517,7 @@ void NodeFtdi::CloseFinished(uv_work_t* req)
     if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
     {
         Handle<Value> argv[1];
-        if(baton->status != FT_OK)
+        if(baton->status != 0)
         {
             argv[0] = String::New(GetStatusString(baton->status));
         }
@@ -649,30 +536,30 @@ void NodeFtdi::CloseFinished(uv_work_t* req)
 /*****************************
  * Helper Section
  *****************************/
- FT_STATUS NodeFtdi::SetDeviceSettings()
+ int NodeFtdi::SetDeviceSettings()
 {
-    FT_STATUS ftStatus;
+    int status;
+    // Set baudrate
+    uv_mutex_lock(&libraryMutex);  
+    status = ftdi_set_baudrate(ftdi, deviceParams.baudRate);
+    uv_mutex_unlock(&libraryMutex); 
+    if (status < 0)
+    {
+        fprintf(stderr, "unable to set baudrate: %d (%s)\n", status, ftdi_get_error_string(ftdi));
+        return status;
+    }
     
     uv_mutex_lock(&libraryMutex);  
-    ftStatus = FT_SetDataCharacteristics(ftHandle, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
-    uv_mutex_unlock(&libraryMutex);  
-    if (ftStatus != FT_OK) 
+    status = ftdi_set_line_property(ftdi, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
+    uv_mutex_unlock(&libraryMutex); 
+    if (status < 0)
     {
-        fprintf(stderr, "Can't Set FT_SetDataCharacteristics: %d\n", ftStatus);
-        return ftStatus;
-    }
-
-    uv_mutex_lock(&libraryMutex);  
-    ftStatus = FT_SetBaudRate(ftHandle, deviceParams.baudRate);
-    uv_mutex_unlock(&libraryMutex);  
-    if (ftStatus != FT_OK) 
-    {
-        fprintf(stderr, "Can't setBaudRate: %d\n", ftStatus);
-        return ftStatus;
+        fprintf(stderr, "unable to set line parameters: %d (%s)\n", status, ftdi_get_error_string(ftdi));
+        return status;
     }
 
     printf("Connection Settings set [Baud: %d, DataBits: %d, StopBits: %d, Parity: %d]\r\n", deviceParams.baudRate, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
-    return ftStatus;
+    return status;
 }
 
 void NodeFtdi::ExtractDeviceSettings(Local<Object> options)
@@ -704,47 +591,47 @@ void NodeFtdi::ExtractDeviceSettings(Local<Object> options)
     }
 }
 
-UCHAR GetWordLength(int wordLength)
+ftdi_bits_type GetWordLength(int wordLength)
 {
     switch(wordLength)
     {
         case 7:
-            return FT_BITS_7;
+            return BITS_7;
 
         case 8:
         default:
-            return FT_BITS_8;
+            return BITS_8;
     }
 }
 
-UCHAR GetStopBits(int stopBits)
+ftdi_stopbits_type GetStopBits(int stopBits)
 {
     switch(stopBits)
     {
         case 1:
-            return FT_STOP_BITS_1;
+            return STOP_BIT_1;
 
         case 2:
         default:
-            return FT_STOP_BITS_2;
+            return STOP_BIT_2;
     }
 }
 
-UCHAR GetParity(const char* string)
+ftdi_parity_type GetParity(const char* string)
 {
     if(strcmp(CONNECTION_PARITY_NONE, string) == 0)
     {
-        return FT_PARITY_NONE;
+        return NONE;
     }
     else if(strcmp(CONNECTION_PARITY_ODD, string) == 0)
     {
-        return FT_PARITY_ODD;
+        return ODD;
     }
     else if(strcmp(CONNECTION_PARITY_EVEN, string) == 0)
     {
-        return FT_PARITY_EVEN;
+        return EVEN;
     }
-    return FT_PARITY_NONE;
+    return NONE;
 }
 
 void ToCString(Local<String> val, char ** ptr) 
@@ -764,64 +651,6 @@ Handle<Value> NodeFtdi::ThrowLastError(std::string message)
 
     return ThrowException(Exception::Error(msg));
 }
-
-
-/*****************************
- * Platform dependet Section
- *****************************/
-#ifndef WIN32
-
-FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
-{
-    FT_STATUS status;
-    pthread_mutex_init(&(baton->eh).eMutex, NULL);
-    pthread_cond_init(&(baton->eh).eCondVar, NULL);
-    uv_mutex_lock(&libraryMutex);  
-    status = FT_SetEventNotification(handle, EVENT_MASK, (PVOID)&(baton->eh));
-    uv_mutex_unlock(&libraryMutex);  
-    return status;
-}
-
-
-void WaitForReadEvent(ReadBaton_t *baton)
-{
-    gettimeofday(&baton->tp, NULL);
-
-    int additionalSeconds = 0;
-    int additionalMilisecs = 0;
-    additionalSeconds = (WAIT_TIME_MILLISECONDS  / MILISECS_PER_SECOND);
-    additionalMilisecs = (WAIT_TIME_MILLISECONDS % MILISECS_PER_SECOND);
-
-    long additionalNanosec = baton->tp.tv_usec * 1000 + additionalMilisecs * NANOSECS_PER_MILISECOND;
-    additionalSeconds += (additionalNanosec / NANOSECS_PER_SECOND);
-    additionalNanosec = (additionalNanosec % NANOSECS_PER_SECOND);
-
-    /* Convert from timeval to timespec */
-    baton->ts.tv_sec  = baton->tp.tv_sec;
-    baton->ts.tv_nsec = additionalNanosec;
-    baton->ts.tv_sec += additionalSeconds;
-
-    pthread_mutex_lock(&(baton->eh).eMutex);
-    pthread_cond_timedwait(&(baton->eh).eCondVar, &(baton->eh).eMutex, &baton->ts);
-    pthread_mutex_unlock(&(baton->eh).eMutex);
-}
-
-#else
-FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
-{    
-    FT_STATUS status;
-    baton->hEvent = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
-    uv_mutex_lock(&libraryMutex);  
-    status = FT_SetEventNotification(handle, EVENT_MASK, baton->hEvent);
-    uv_mutex_unlock(&libraryMutex);  
-    return status;
-}
-
-void WaitForReadEvent(ReadBaton_t *baton)
-{
-    WaitForSingleObject(baton->hEvent, WAIT_TIME_MILLISECONDS);
-}
-#endif
 
 extern "C" {
   void init (v8::Handle<v8::Object> target) 

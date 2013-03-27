@@ -3,7 +3,7 @@
 
 #include <v8.h>
 #include <node.h>
-#include <ftd2xx.h>
+#include <ftdi.h>
 
 using namespace v8;
 using namespace node;
@@ -11,29 +11,27 @@ using namespace node;
 namespace node_ftdi 
 {
 
-typedef enum 
+typedef struct ConnectionParams_t
 {
-    ConnectType_ByIndex,
-    ConnectType_BySerial,
-    ConnectType_ByDescription,
-    ConnectType_ByLocationId,
-} ConnectType_t;
-
-typedef struct 
-{
-    ConnectType_t connectType;
-    char *connectString;
-    int32_t connectId;
+    char *description;
+    char *serial;
     int pid;
     int vid;
+
+    ConnectionParams_t()
+    {
+        description = NULL;
+        serial = NULL;
+    }
+
 } ConnectionParams_t;
 
 typedef struct 
 {
     int baudRate;
-    UCHAR wordLength;
-    UCHAR stopBits;
-    UCHAR parity;
+    ftdi_bits_type wordLength;
+    ftdi_stopbits_type stopBits;
+    ftdi_parity_type parity;
 } DeviceParams_t;
 
 typedef enum
@@ -76,10 +74,10 @@ class NodeFtdi : public ObjectWrap
         static void CloseFinished(uv_work_t* req);
         
         void ExtractDeviceSettings(Local<v8::Object> options);
-        FT_STATUS SetDeviceSettings();
-        FT_STATUS OpenDevice();
+        int SetDeviceSettings();
+        int OpenDevice();
 
-        FT_HANDLE ftHandle;
+        struct ftdi_context *ftdi;
         DeviceParams_t deviceParams;
         ConnectionParams_t connectParams;
 

@@ -42,14 +42,14 @@
         ['OS != "win"',
           {
             'include_dirs+': [
-              '/usr/local/include/libftd2xx/'
+              '/usr/include/libftdi1/'
             ],
             'ldflags': [
               '-Wl,-Map=output.map',
             ],
             'link_settings': {
               'libraries': [
-                '-lftd2xx'
+                '-lftdi1'
               ]
             }
           }

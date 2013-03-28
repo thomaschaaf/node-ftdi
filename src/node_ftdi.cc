@@ -124,6 +124,7 @@ NodeFtdi::~NodeFtdi()
 
 void NodeFtdi::Initialize(v8::Handle<v8::Object> target) 
 {
+    try {
     // Prepare constructor template
     Local<FunctionTemplate> tpl = FunctionTemplate::New(New);
     tpl->SetClassName(String::NewSymbol("FtdiDevice"));
@@ -135,10 +136,12 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target)
 
     Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
     target->Set(String::NewSymbol("FtdiDevice"), constructor);
+    } catch(...) { printf("\n ----------- ERROR in function 'Initialize' -----------\n\n"); }
 }
 
 Handle<Value> NodeFtdi::New(const Arguments& args) 
 {
+    try {
     HandleScope scope;
     Local<String> locationId = String::New(DEVICE_LOCATION_ID_TAG);
     Local<String> serial = String::New(DEVICE_SERIAL_NR_TAG);
@@ -200,6 +203,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     object->Wrap(args.This());
 
     return args.This();
+    } catch(...) { printf("\n ----------- ERROR in function 'New' -----------\n\n"); }
 }
 
 /*****************************
@@ -207,6 +211,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
  *****************************/
 Handle<Value> NodeFtdi::Open(const Arguments& args) 
 {
+    try {
     HandleScope scope;
 
     // Get Object
@@ -250,11 +255,13 @@ Handle<Value> NodeFtdi::Open(const Arguments& args)
     uv_queue_work(uv_default_loop(), req, OpenAsync, (uv_after_work_cb)NodeFtdi::OpenFinished);
 
     return args.This();
+    } catch(...) { printf("\n ----------- ERROR in function 'Open' -----------\n\n"); }
 }
 
 
 void NodeFtdi::OpenAsync(uv_work_t* req)
 {
+    try {
     FT_STATUS ftStatus;
     OpenBaton_t* baton = static_cast<OpenBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
@@ -274,10 +281,12 @@ void NodeFtdi::OpenAsync(uv_work_t* req)
     }
 
     baton->status = ftStatus;
+    } catch(...) { printf("\n ----------- ERROR in function 'OpenAsync' -----------\n\n"); }
 }
 
 void NodeFtdi::OpenFinished(uv_work_t* req)
 {
+    try {
     OpenBaton_t* baton = static_cast<OpenBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
  
@@ -311,10 +320,12 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
     delete req;
     baton->callback.Dispose();
     delete baton;
+    } catch(...) { printf("\n ----------- ERROR in function 'OpenFinished' -----------\n\n"); }
 }
 
 FT_STATUS NodeFtdi::OpenDevice()
 {
+    try {
     FT_STATUS status;
 
     if(connectParams.connectType == ConnectType_ByIndex)
@@ -380,6 +391,7 @@ FT_STATUS NodeFtdi::OpenDevice()
     }
 
     return FT_INVALID_PARAMETER;
+    } catch(...) { printf("\n ----------- ERROR in function 'OpenDevice' -----------\n\n"); }
 }
 
 /*****************************
@@ -387,6 +399,7 @@ FT_STATUS NodeFtdi::OpenDevice()
  *****************************/
 void NodeFtdi::ReadDataAsync(uv_work_t* req)
 {
+    try {
     FT_STATUS ftStatus;
     DWORD RxBytes;
     DWORD BytesReceived;
@@ -435,10 +448,12 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
             return;
         }
     }
+    } catch(...) { printf("\n ----------- ERROR in function 'ReadDataAsync' -----------\n\n"); }
 }
 
 void NodeFtdi::ReadCallback(uv_work_t* req)
 {
+    try {
     HandleScope scope;
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
@@ -486,6 +501,7 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
     {
         uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
     }
+    } catch(...) { printf("\n ----------- ERROR in function 'ReadCallback' -----------\n\n"); }
 }
 
 
@@ -494,6 +510,7 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
  *****************************/
 Handle<Value> NodeFtdi::Write(const Arguments& args) 
 {
+    try {
     HandleScope scope;
 
      // buffer
@@ -525,10 +542,12 @@ Handle<Value> NodeFtdi::Write(const Arguments& args)
     uv_queue_work(uv_default_loop(), req, NodeFtdi::WriteAsync, (uv_after_work_cb)NodeFtdi::WriteFinished);
 
     return scope.Close(v8::Undefined());
+    } catch(...) { printf("\n ----------- ERROR in function 'Write' -----------\n\n"); }
 }
 
 void NodeFtdi::WriteAsync(uv_work_t* req)
 {
+    try {
     FT_STATUS ftStatus;
     DWORD bytesWritten;
     WriteBaton_t* baton = static_cast<WriteBaton_t*>(req->data);
@@ -539,10 +558,12 @@ void NodeFtdi::WriteAsync(uv_work_t* req)
     uv_mutex_unlock(&libraryMutex);  
 
     baton->status = ftStatus;
+    } catch(...) { printf("\n ----------- ERROR in function 'WriteAsync' -----------\n\n"); }
 }
 
 void NodeFtdi::WriteFinished(uv_work_t* req)
 {
+    try {
     WriteBaton_t* baton = static_cast<WriteBaton_t*>(req->data);
     if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
     {
@@ -564,6 +585,7 @@ void NodeFtdi::WriteFinished(uv_work_t* req)
     baton->callback.Dispose();
     delete baton;
     delete req;
+    } catch(...) { printf("\n ----------- ERROR in function 'WriteFinished' -----------\n\n"); }
 }
 
 /*****************************
@@ -571,6 +593,7 @@ void NodeFtdi::WriteFinished(uv_work_t* req)
  *****************************/
 Handle<Value> NodeFtdi::Close(const Arguments& args) 
 {
+    try {
     HandleScope scope;
 
     // Get Object
@@ -602,10 +625,12 @@ Handle<Value> NodeFtdi::Close(const Arguments& args)
         uv_queue_work(uv_default_loop(), req, NodeFtdi::CloseAsync, (uv_after_work_cb)NodeFtdi::CloseFinished);
     }
     return scope.Close(v8::Undefined());
+    } catch(...) { printf("\n ----------- ERROR in function 'Close' -----------\n\n"); }
 }
 
 void NodeFtdi::CloseAsync(uv_work_t* req)
 {
+    try {
     FT_STATUS ftStatus;
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
@@ -619,10 +644,12 @@ void NodeFtdi::CloseAsync(uv_work_t* req)
     ftStatus = FT_Close(device->ftHandle);
     uv_mutex_unlock(&libraryMutex);  
     baton->status = ftStatus;
+    } catch(...) { printf("\n ----------- ERROR in function 'CloseAsync' -----------\n\n"); }
 }
 
 void NodeFtdi::CloseFinished(uv_work_t* req)
 {
+    try {
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
 
@@ -646,13 +673,15 @@ void NodeFtdi::CloseFinished(uv_work_t* req)
     delete req;
     baton->callback.Dispose();
     delete baton;
+    } catch(...) { printf("\n ----------- ERROR in function 'CloseFinished' -----------\n\n"); }
 }
 
 /*****************************
  * Helper Section
  *****************************/
- FT_STATUS NodeFtdi::SetDeviceSettings()
+FT_STATUS NodeFtdi::SetDeviceSettings()
 {
+    try {
     FT_STATUS ftStatus;
     
     uv_mutex_lock(&libraryMutex);  
@@ -675,10 +704,12 @@ void NodeFtdi::CloseFinished(uv_work_t* req)
 
     printf("Connection Settings set [Baud: %d, DataBits: %d, StopBits: %d, Parity: %d]\r\n", deviceParams.baudRate, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
     return ftStatus;
+    } catch(...) { printf("\n ----------- ERROR in function 'SetDeviceSettings' -----------\n\n"); }
 }
 
 void NodeFtdi::ExtractDeviceSettings(Local<Object> options)
 {
+    try {
     HandleScope scope;
     Local<String> baudrate  = String::New(CONNECTION_BAUDRATE_TAG);
     Local<String> databits  = String::New(CONNECTION_DATABITS_TAG);
@@ -704,10 +735,12 @@ void NodeFtdi::ExtractDeviceSettings(Local<Object> options)
         deviceParams.parity = GetParity(str);
         free(str);
     }
+    } catch(...) { printf("\n ----------- ERROR in function 'ExtractDeviceSettings' -----------\n\n"); }
 }
 
 UCHAR GetWordLength(int wordLength)
 {
+    try {
     switch(wordLength)
     {
         case 7:
@@ -717,10 +750,12 @@ UCHAR GetWordLength(int wordLength)
         default:
             return FT_BITS_8;
     }
+    } catch(...) { printf("\n ----------- ERROR in function 'GetWordLength' -----------\n\n"); }
 }
 
 UCHAR GetStopBits(int stopBits)
 {
+    try {
     switch(stopBits)
     {
         case 1:
@@ -730,10 +765,12 @@ UCHAR GetStopBits(int stopBits)
         default:
             return FT_STOP_BITS_2;
     }
+    } catch(...) { printf("\n ----------- ERROR in function 'GetStopBits' -----------\n\n"); }
 }
 
 UCHAR GetParity(const char* string)
 {
+    try {
     if(strcmp(CONNECTION_PARITY_NONE, string) == 0)
     {
         return FT_PARITY_NONE;
@@ -747,24 +784,31 @@ UCHAR GetParity(const char* string)
         return FT_PARITY_EVEN;
     }
     return FT_PARITY_NONE;
+    } catch(...) { printf("\n ----------- ERROR in function 'GetParity' -----------\n\n"); }
 }
 
 void ToCString(Local<String> val, char ** ptr) 
 {
+    try {
     *ptr = (char *) malloc (val->Utf8Length() + 1);
     val->WriteAscii(*ptr, 0, -1, 0);
+    } catch(...) { printf("\n ----------- ERROR in function 'ToCString' -----------\n\n"); }
 }
 
 Handle<Value> NodeFtdi::ThrowTypeError(std::string message) 
 {
+    try {
     return ThrowException(Exception::TypeError(String::New(message.c_str())));
+    } catch(...) { printf("\n ----------- ERROR in function 'ThrowTypeError' -----------\n\n"); }
 }
 
 Handle<Value> NodeFtdi::ThrowLastError(std::string message) 
 {
+    try {
     Local<String> msg = String::New(message.c_str());
 
     return ThrowException(Exception::Error(msg));
+    } catch(...) { printf("\n ----------- ERROR in function 'ThrowLastError' -----------\n\n"); }
 }
 
 
@@ -775,6 +819,7 @@ Handle<Value> NodeFtdi::ThrowLastError(std::string message)
 
 FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
 {
+    try {
     FT_STATUS status;
     pthread_mutex_init(&(baton->eh).eMutex, NULL);
     pthread_cond_init(&(baton->eh).eCondVar, NULL);
@@ -782,11 +827,13 @@ FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
     status = FT_SetEventNotification(handle, EVENT_MASK, (PVOID)&(baton->eh));
     uv_mutex_unlock(&libraryMutex);  
     return status;
+    } catch(...) { printf("\n ----------- ERROR in function 'PrepareAsyncRead' -----------\n\n"); }
 }
 
 
 void WaitForReadEvent(ReadBaton_t *baton)
 {
+    try {
     gettimeofday(&baton->tp, NULL);
 
     int additionalSeconds = 0;
@@ -806,22 +853,27 @@ void WaitForReadEvent(ReadBaton_t *baton)
     pthread_mutex_lock(&(baton->eh).eMutex);
     pthread_cond_timedwait(&(baton->eh).eCondVar, &(baton->eh).eMutex, &baton->ts);
     pthread_mutex_unlock(&(baton->eh).eMutex);
+    } catch(...) { printf("\n ----------- ERROR in function 'WaitForReadEvent' -----------\n\n"); }
 }
 
 #else
 FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
-{    
+{
+    try { 
     FT_STATUS status;
     baton->hEvent = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
     uv_mutex_lock(&libraryMutex);  
     status = FT_SetEventNotification(handle, EVENT_MASK, baton->hEvent);
     uv_mutex_unlock(&libraryMutex);  
     return status;
+    } catch(...) { printf("\n ----------- ERROR in function 'PrepareAsyncRead' -----------\n\n"); }
 }
 
 void WaitForReadEvent(ReadBaton_t *baton)
 {
+    try {
     WaitForSingleObject(baton->hEvent, WAIT_TIME_MILLISECONDS);
+    } catch(...) { printf("\n ----------- ERROR in function 'WaitForReadEvent' -----------\n\n"); }
 }
 #endif
 

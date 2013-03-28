@@ -28,7 +28,7 @@ using namespace node_ftdi;
  * Local defines
  **********************************/
 #define EVENT_MASK (FT_EVENT_RXCHAR)
-#define WAIT_TIME_MILLISECONDS      500
+#define WAIT_TIME_MILLISECONDS      250
 
 #define NANOSECS_PER_SECOND         1000000000
 #define NANOSECS_PER_MILISECOND     1000000
@@ -152,7 +152,8 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     {
         Local<Object> obj = args[0]->ToObject();
 
-        if(obj->Has(locationId)) 
+
+        if(obj->Has(locationId) && obj->Get(locationId)->Int32Value() != 0) 
         {
             object->connectParams.connectId = obj->Get(locationId)->Int32Value();
             object->connectParams.connectType = ConnectType_ByLocationId;
@@ -650,7 +651,7 @@ void NodeFtdi::CloseFinished(uv_work_t* req)
 /*****************************
  * Helper Section
  *****************************/
- FT_STATUS NodeFtdi::SetDeviceSettings()
+FT_STATUS NodeFtdi::SetDeviceSettings()
 {
     FT_STATUS ftStatus;
     
@@ -809,7 +810,7 @@ void WaitForReadEvent(ReadBaton_t *baton)
 
 #else
 FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
-{    
+{
     FT_STATUS status;
     baton->hEvent = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
     uv_mutex_lock(&libraryMutex);  

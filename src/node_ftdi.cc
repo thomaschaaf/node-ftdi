@@ -117,7 +117,6 @@ NodeFtdi::~NodeFtdi()
 {
     if(connectParams.connectString != NULL)
     {
-        printf("************ Free Ressource\r\n");
         free(connectParams.connectString);
     }
 };
@@ -153,12 +152,12 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     {
         Local<Object> obj = args[0]->ToObject();
 
-        // if(obj->Has(locationId)) 
-        // {
-        //     object->connectParams.connectId = obj->Get(locationId)->Int32Value();
-        //     object->connectParams.connectType = ConnectType_ByLocationId;
-        // }
-        // else 
+        if(obj->Has(locationId)) 
+        {
+            object->connectParams.connectId = obj->Get(locationId)->Int32Value();
+            object->connectParams.connectType = ConnectType_ByLocationId;
+        }
+        else 
         if(obj->Has(serial)) 
         {
             ToCString(obj->Get(serial)->ToString(), &object->connectParams.connectString);

@@ -97,7 +97,7 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
 
 # Release Notes
 
-## v0.1.0
+## v1.0.0
 
 - first release
 

@@ -1,5 +1,5 @@
-#ifndef NODE_FTDI_H
-#define NODE_FTDI_H
+#ifndef FTDI_DEVICE_H
+#define FTDI_DEVICE_H
 
 #include <v8.h>
 #include <node.h>
@@ -8,7 +8,7 @@
 using namespace v8;
 using namespace node;
 
-namespace node_ftdi 
+namespace ftdi_device 
 {
 
 typedef enum 
@@ -49,14 +49,14 @@ typedef enum
     DeviceState_Closing
 } DeviceState_t;
 
-class NodeFtdi : public ObjectWrap 
+class FtdiDevice : public ObjectWrap 
 {
     public:
         static void Initialize(Handle<Object> target);
 
     protected:
-        NodeFtdi();
-        ~NodeFtdi();
+        FtdiDevice();
+        ~FtdiDevice();
 
         static Handle<Value> New(const Arguments& args);
         static Handle<Value> Open(const Arguments& args);

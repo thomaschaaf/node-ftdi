@@ -8,7 +8,7 @@
 #include <uv.h>
 
 #include "ftdi_constants.h"
-#include "node_ftdi.h"
+#include "ftdi_device.h"
 #include "ftdi_driver.h"
 
 #ifndef WIN32
@@ -21,7 +21,7 @@
 using namespace std;
 using namespace v8;
 using namespace node;
-using namespace node_ftdi;
+using namespace ftdi_device;
 
 
 /**********************************
@@ -39,7 +39,7 @@ using namespace node_ftdi;
  **********************************/
 typedef struct 
 {
-    NodeFtdi* device;
+    FtdiDevice* device;
     Persistent<Value> callback; 
     Persistent<Value> readCallback; 
     FT_STATUS status;
@@ -47,7 +47,7 @@ typedef struct
 
 typedef struct
 {
-    NodeFtdi* device;
+    FtdiDevice* device;
 #ifndef WIN32
     EVENT_HANDLE eh;
     struct timespec ts;
@@ -63,7 +63,7 @@ typedef struct
 
 typedef struct  
 {
-    NodeFtdi* device;
+    FtdiDevice* device;
     uint8_t* data;
     DWORD length;
     Persistent<Value> callback;
@@ -72,7 +72,7 @@ typedef struct
 
 typedef struct CloseBaton_t
 {
-    NodeFtdi* device;
+    FtdiDevice* device;
     Persistent<Value> callback;
     FT_STATUS status;
     uv_mutex_t closeMutex;
@@ -108,12 +108,12 @@ void ToCString(Local<String> val, char ** ptr);
  * CREATION Section
  *****************************/
 
-NodeFtdi::NodeFtdi() 
+FtdiDevice::FtdiDevice() 
 {
     deviceState = DeviceState_Idle;
 };
 
-NodeFtdi::~NodeFtdi() 
+FtdiDevice::~FtdiDevice() 
 {
     if(connectParams.connectString != NULL)
     {
@@ -121,7 +121,7 @@ NodeFtdi::~NodeFtdi()
     }
 };
 
-void NodeFtdi::Initialize(v8::Handle<v8::Object> target) 
+void FtdiDevice::Initialize(v8::Handle<v8::Object> target) 
 {
     // Prepare constructor template
     Local<FunctionTemplate> tpl = FunctionTemplate::New(New);
@@ -136,7 +136,7 @@ void NodeFtdi::Initialize(v8::Handle<v8::Object> target)
     target->Set(String::NewSymbol("FtdiDevice"), constructor);
 }
 
-Handle<Value> NodeFtdi::New(const Arguments& args) 
+Handle<Value> FtdiDevice::New(const Arguments& args) 
 {
     HandleScope scope;
     Local<String> locationId = String::New(DEVICE_LOCATION_ID_TAG);
@@ -146,7 +146,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     Local<String> vid = String::New(DEVICE_VENDOR_ID_TAG);
     Local<String> pid = String::New(DEVICE_PRODUCT_ID_TAG);
 
-    NodeFtdi* object = new NodeFtdi();
+    FtdiDevice* object = new FtdiDevice();
 
     if(args[0]->IsObject()) 
     {
@@ -185,7 +185,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
         {
             object->connectParams.pid = obj->Get(pid)->Int32Value();
         }
-        printf("Device Info [Vid: %x, Pid: %x]\r\n", object->connectParams.vid, object->connectParams.pid);
+        // printf("Device Info [Vid: %x, Pid: %x]\r\n", object->connectParams.vid, object->connectParams.pid);
     }
     else if(args[0]->IsNumber())
     {
@@ -194,7 +194,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     }
     else
     {
-        return NodeFtdi::ThrowTypeError("new expects a object as argument");
+        return FtdiDevice::ThrowTypeError("new expects a object as argument");
     }
     
     object->Wrap(args.This());
@@ -205,35 +205,35 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
 /*****************************
  * OPEN Section
  *****************************/
-Handle<Value> NodeFtdi::Open(const Arguments& args) 
+Handle<Value> FtdiDevice::Open(const Arguments& args) 
 {
     HandleScope scope;
 
     // Get Object
-    NodeFtdi* device = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+    FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
     device->deviceState = DeviceState_Open;
 
     if (args.Length() != 3) 
     {
-        return NodeFtdi::ThrowTypeError("open() expects three arguments");
+        return FtdiDevice::ThrowTypeError("open() expects three arguments");
     }
 
     if (!args[0]->IsObject()) 
     {
-        return NodeFtdi::ThrowTypeError("open() expects a object as first argument");
+        return FtdiDevice::ThrowTypeError("open() expects a object as first argument");
     }
 
     // options
     if(!args[1]->IsFunction()) 
     {
-        return NodeFtdi::ThrowTypeError("open() expects a function as second argument");
+        return FtdiDevice::ThrowTypeError("open() expects a function as second argument");
     }
     Local<Value> readCallback = args[1];
 
         // options
     if(!args[2]->IsFunction()) 
     {
-        return NodeFtdi::ThrowTypeError("open() expects a function as third argument");
+        return FtdiDevice::ThrowTypeError("open() expects a function as third argument");
     }
     Local<Value> openCallback = args[2];
 
@@ -247,17 +247,17 @@ Handle<Value> NodeFtdi::Open(const Arguments& args)
 
     uv_work_t* req = new uv_work_t();
     req->data = baton;
-    uv_queue_work(uv_default_loop(), req, OpenAsync, (uv_after_work_cb)NodeFtdi::OpenFinished);
+    uv_queue_work(uv_default_loop(), req, OpenAsync, (uv_after_work_cb)FtdiDevice::OpenFinished);
 
     return args.This();
 }
 
 
-void NodeFtdi::OpenAsync(uv_work_t* req)
+void FtdiDevice::OpenAsync(uv_work_t* req)
 {
     FT_STATUS ftStatus;
     OpenBaton_t* baton = static_cast<OpenBaton_t*>(req->data);
-    NodeFtdi* device = baton->device;
+    FtdiDevice* device = baton->device;
 
     ftStatus = device->OpenDevice();
     if (ftStatus != FT_OK) 
@@ -276,10 +276,10 @@ void NodeFtdi::OpenAsync(uv_work_t* req)
     baton->status = ftStatus;
 }
 
-void NodeFtdi::OpenFinished(uv_work_t* req)
+void FtdiDevice::OpenFinished(uv_work_t* req)
 {
     OpenBaton_t* baton = static_cast<OpenBaton_t*>(req->data);
-    NodeFtdi* device = baton->device;
+    FtdiDevice* device = baton->device;
  
     if(baton->status == FT_OK)
     {
@@ -290,7 +290,7 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
 
         uv_work_t* req = new uv_work_t();
         req->data = readBaton;
-        uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
+        uv_queue_work(uv_default_loop(), req, FtdiDevice::ReadDataAsync, (uv_after_work_cb)FtdiDevice::ReadCallback);
     }
 
     if(baton->callback->IsFunction())
@@ -313,7 +313,7 @@ void NodeFtdi::OpenFinished(uv_work_t* req)
     delete baton;
 }
 
-FT_STATUS NodeFtdi::OpenDevice()
+FT_STATUS FtdiDevice::OpenDevice()
 {
     FT_STATUS status;
 
@@ -325,7 +325,7 @@ FT_STATUS NodeFtdi::OpenDevice()
 #endif
         status = FT_Open(connectParams.connectId, &ftHandle);
         uv_mutex_unlock(&libraryMutex);  
-        printf("OpenDeviceByIndex [Index: %d]\r\n", connectParams.connectId);
+        // printf("OpenDeviceByIndex [Index: %d]\r\n", connectParams.connectId);
         return status;
     }
     else
@@ -339,7 +339,7 @@ FT_STATUS NodeFtdi::OpenDevice()
             {
                 arg = (PVOID) connectParams.connectString;
                 flags = FT_OPEN_BY_DESCRIPTION;
-                printf("OpenDevice [Flag: %d, Arg: %s]\r\n", flags, (char *)arg);
+                // printf("OpenDevice [Flag: %d, Arg: %s]\r\n", flags, (char *)arg);
             }
             break;
 
@@ -347,7 +347,7 @@ FT_STATUS NodeFtdi::OpenDevice()
             {
                 arg = (PVOID) connectParams.connectString;
                 flags = FT_OPEN_BY_SERIAL_NUMBER;
-                printf("OpenDevice [Flag: %d, Arg: %s]\r\n", flags, (char *)arg);
+                // printf("OpenDevice [Flag: %d, Arg: %s]\r\n", flags, (char *)arg);
             }
             break;
 
@@ -356,7 +356,7 @@ FT_STATUS NodeFtdi::OpenDevice()
             {
                 arg = (PVOID) connectParams.connectId;
                 flags = FT_OPEN_BY_LOCATION;
-                printf("OpenDevice [Flag: %d, Arg: %d]\r\n", flags, connectParams.connectId);
+                // printf("OpenDevice [Flag: %d, Arg: %d]\r\n", flags, connectParams.connectId);
             }
             break;
 
@@ -385,14 +385,14 @@ FT_STATUS NodeFtdi::OpenDevice()
 /*****************************
  * READ Section
  *****************************/
-void NodeFtdi::ReadDataAsync(uv_work_t* req)
+void FtdiDevice::ReadDataAsync(uv_work_t* req)
 {
     FT_STATUS ftStatus;
     DWORD RxBytes;
     DWORD BytesReceived;
 
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
-    NodeFtdi* device = baton->device;
+    FtdiDevice* device = baton->device;
     while(1)
     {
         WaitForReadEvent(baton);
@@ -437,11 +437,11 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
     }
 }
 
-void NodeFtdi::ReadCallback(uv_work_t* req)
+void FtdiDevice::ReadCallback(uv_work_t* req)
 {
     HandleScope scope;
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
-    NodeFtdi* device = baton->device;
+    FtdiDevice* device = baton->device;
 
     if(baton->status != FT_OK || (baton->length != 0 && baton->callback->IsFunction()))
     {
@@ -484,7 +484,7 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
     }
     else
     {
-        uv_queue_work(uv_default_loop(), req, NodeFtdi::ReadDataAsync, (uv_after_work_cb)NodeFtdi::ReadCallback);
+        uv_queue_work(uv_default_loop(), req, FtdiDevice::ReadDataAsync, (uv_after_work_cb)FtdiDevice::ReadCallback);
     }
 }
 
@@ -492,7 +492,7 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
 /*****************************
  * WRITE Section
  *****************************/
-Handle<Value> NodeFtdi::Write(const Arguments& args) 
+Handle<Value> FtdiDevice::Write(const Arguments& args) 
 {
     HandleScope scope;
 
@@ -504,7 +504,7 @@ Handle<Value> NodeFtdi::Write(const Arguments& args)
     Local<Object> buffer = Local<Object>::New(args[0]->ToObject());
 
     // Get Object
-    NodeFtdi* device = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+    FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
     WriteBaton_t* baton = new WriteBaton_t();
 
     Local<Value> writeCallback;
@@ -522,17 +522,17 @@ Handle<Value> NodeFtdi::Write(const Arguments& args)
 
     uv_work_t* req = new uv_work_t();
     req->data = baton;
-    uv_queue_work(uv_default_loop(), req, NodeFtdi::WriteAsync, (uv_after_work_cb)NodeFtdi::WriteFinished);
+    uv_queue_work(uv_default_loop(), req, FtdiDevice::WriteAsync, (uv_after_work_cb)FtdiDevice::WriteFinished);
 
     return scope.Close(v8::Undefined());
 }
 
-void NodeFtdi::WriteAsync(uv_work_t* req)
+void FtdiDevice::WriteAsync(uv_work_t* req)
 {
     FT_STATUS ftStatus;
     DWORD bytesWritten;
     WriteBaton_t* baton = static_cast<WriteBaton_t*>(req->data);
-    NodeFtdi* device = baton->device;
+    FtdiDevice* device = baton->device;
 
     uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_Write(device->ftHandle, baton->data, baton->length, &bytesWritten);
@@ -541,7 +541,7 @@ void NodeFtdi::WriteAsync(uv_work_t* req)
     baton->status = ftStatus;
 }
 
-void NodeFtdi::WriteFinished(uv_work_t* req)
+void FtdiDevice::WriteFinished(uv_work_t* req)
 {
     WriteBaton_t* baton = static_cast<WriteBaton_t*>(req->data);
     if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
@@ -569,12 +569,12 @@ void NodeFtdi::WriteFinished(uv_work_t* req)
 /*****************************
  * CLOSE Section
  *****************************/
-Handle<Value> NodeFtdi::Close(const Arguments& args) 
+Handle<Value> FtdiDevice::Close(const Arguments& args) 
 {
     HandleScope scope;
 
     // Get Object
-    NodeFtdi* device = ObjectWrap::Unwrap<NodeFtdi>(args.This());
+    FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
 
     if(device->deviceState != DeviceState_Open)
     {
@@ -599,16 +599,16 @@ Handle<Value> NodeFtdi::Close(const Arguments& args)
 
         uv_work_t* req = new uv_work_t();
         req->data = baton;
-        uv_queue_work(uv_default_loop(), req, NodeFtdi::CloseAsync, (uv_after_work_cb)NodeFtdi::CloseFinished);
+        uv_queue_work(uv_default_loop(), req, FtdiDevice::CloseAsync, (uv_after_work_cb)FtdiDevice::CloseFinished);
     }
     return scope.Close(v8::Undefined());
 }
 
-void NodeFtdi::CloseAsync(uv_work_t* req)
+void FtdiDevice::CloseAsync(uv_work_t* req)
 {
     FT_STATUS ftStatus;
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
-    NodeFtdi* device = baton->device;
+    FtdiDevice* device = baton->device;
 
     device->syncContext = &baton->closeMutex;
     device->deviceState = DeviceState_Closing;
@@ -621,10 +621,10 @@ void NodeFtdi::CloseAsync(uv_work_t* req)
     baton->status = ftStatus;
 }
 
-void NodeFtdi::CloseFinished(uv_work_t* req)
+void FtdiDevice::CloseFinished(uv_work_t* req)
 {
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
-    NodeFtdi* device = baton->device;
+    FtdiDevice* device = baton->device;
 
     device->deviceState = DeviceState_Idle;
 
@@ -650,7 +650,7 @@ void NodeFtdi::CloseFinished(uv_work_t* req)
 /*****************************
  * Helper Section
  *****************************/
-FT_STATUS NodeFtdi::SetDeviceSettings()
+FT_STATUS FtdiDevice::SetDeviceSettings()
 {
     FT_STATUS ftStatus;
     
@@ -672,11 +672,11 @@ FT_STATUS NodeFtdi::SetDeviceSettings()
         return ftStatus;
     }
 
-    printf("Connection Settings set [Baud: %d, DataBits: %d, StopBits: %d, Parity: %d]\r\n", deviceParams.baudRate, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
+    // printf("Connection Settings set [Baud: %d, DataBits: %d, StopBits: %d, Parity: %d]\r\n", deviceParams.baudRate, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
     return ftStatus;
 }
 
-void NodeFtdi::ExtractDeviceSettings(Local<Object> options)
+void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
 {
     HandleScope scope;
     Local<String> baudrate  = String::New(CONNECTION_BAUDRATE_TAG);
@@ -754,12 +754,12 @@ void ToCString(Local<String> val, char ** ptr)
     val->WriteAscii(*ptr, 0, -1, 0);
 }
 
-Handle<Value> NodeFtdi::ThrowTypeError(std::string message) 
+Handle<Value> FtdiDevice::ThrowTypeError(std::string message) 
 {
     return ThrowException(Exception::TypeError(String::New(message.c_str())));
 }
 
-Handle<Value> NodeFtdi::ThrowLastError(std::string message) 
+Handle<Value> FtdiDevice::ThrowLastError(std::string message) 
 {
     Local<String> msg = String::New(message.c_str());
 
@@ -828,7 +828,7 @@ extern "C" {
   void init (v8::Handle<v8::Object> target) 
   {
     InitializeList(target);
-    NodeFtdi::Initialize(target);
+    FtdiDevice::Initialize(target);
     uv_mutex_init(&libraryMutex);
   }
 }

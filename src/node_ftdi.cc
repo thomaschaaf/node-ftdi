@@ -117,7 +117,7 @@ NodeFtdi::~NodeFtdi()
 {
     if(connectParams.connectString != NULL)
     {
-        free(connectParams.connectString);
+        delete connectParams.connectString;
     }
 };
 
@@ -420,7 +420,7 @@ void NodeFtdi::ReadDataAsync(uv_work_t* req)
 
         if(RxBytes > 0)
         {
-            baton->data = (uint8_t *)malloc(RxBytes);
+            baton->data = new uint8_t[RxBytes];
 
             uv_mutex_lock(&libraryMutex);  
             ftStatus = FT_Read(device->ftHandle, baton->data, RxBytes, &BytesReceived);
@@ -471,7 +471,7 @@ void NodeFtdi::ReadCallback(uv_work_t* req)
 
     if(baton->length != 0)
     {
-        free(baton->data);
+        delete baton->data;
         baton->length = 0;
     }
 
@@ -516,7 +516,7 @@ Handle<Value> NodeFtdi::Write(const Arguments& args)
     }
 
     baton->length = (DWORD)Buffer::Length(buffer);
-    baton->data = (uint8_t*) malloc(baton->length);
+    baton->data = new uint8_t[baton->length];
     memcpy(baton->data, Buffer::Data(buffer), baton->length);
     baton->device = device;
 
@@ -560,7 +560,7 @@ void NodeFtdi::WriteFinished(uv_work_t* req)
         Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
     }
 
-    free(baton->data);
+    delete baton->data;
     baton->callback.Dispose();
     delete baton;
     delete req;
@@ -626,7 +626,6 @@ void NodeFtdi::CloseFinished(uv_work_t* req)
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
     NodeFtdi* device = baton->device;
 
-    printf("Close Finsihed\r\n");
     device->deviceState = DeviceState_Idle;
 
     if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
@@ -702,7 +701,7 @@ void NodeFtdi::ExtractDeviceSettings(Local<Object> options)
         char* str;
         ToCString(options->Get(parity)->ToString(), &str);
         deviceParams.parity = GetParity(str);
-        free(str);
+        delete str;
     }
 }
 
@@ -751,7 +750,7 @@ UCHAR GetParity(const char* string)
 
 void ToCString(Local<String> val, char ** ptr) 
 {
-    *ptr = (char *) malloc (val->Utf8Length() + 1);
+    *ptr = new char[val->Utf8Length() + 1];
     val->WriteAscii(*ptr, 0, -1, 0);
 }
 

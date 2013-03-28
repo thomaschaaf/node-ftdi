@@ -14,6 +14,8 @@
 #ifndef WIN32
     #include <unistd.h>
     #include <time.h>
+#else
+    #include <windows.h>
 #endif
 
 using namespace std;
@@ -749,7 +751,7 @@ UCHAR GetParity(const char* string)
 
 void ToCString(Local<String> val, char ** ptr) 
 {
-    *ptr = (char *) malloc (val->Utf8Length());
+    *ptr = (char *) malloc (val->Utf8Length() + 1);
     val->WriteAscii(*ptr, 0, -1, 0);
 }
 

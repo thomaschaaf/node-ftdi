@@ -115,6 +115,7 @@ NodeFtdi::~NodeFtdi()
 {
     if(connectParams.connectString != NULL)
     {
+        printf("************ Free Ressource\r\n");
         free(connectParams.connectString);
     }
 };
@@ -145,36 +146,33 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     Local<String> pid = String::New(DEVICE_PRODUCT_ID_TAG);
 
     NodeFtdi* object = new NodeFtdi();
-    object->connectParams.connectString = NULL;
 
     if(args[0]->IsObject()) 
     {
         Local<Object> obj = args[0]->ToObject();
 
-// #ifndef __linux
-        if(obj->Has(locationId) && obj->Get(locationId)->Int32Value() != 0) 
-        {
-            object->connectParams.connectId = obj->Get(locationId)->Int32Value();
-            object->connectParams.connectType = ConnectType_ByLocationId;
-        }
-        else 
-// #endif            
+        // if(obj->Has(locationId)) 
+        // {
+        //     object->connectParams.connectId = obj->Get(locationId)->Int32Value();
+        //     object->connectParams.connectType = ConnectType_ByLocationId;
+        // }
+        // else 
         if(obj->Has(serial)) 
         {
             ToCString(obj->Get(serial)->ToString(), &object->connectParams.connectString);
             object->connectParams.connectType = ConnectType_BySerial;
+        }
+        else 
+        if(obj->Has(description)) 
+        {
+            ToCString(obj->Get(description)->ToString(), &object->connectParams.connectString);
+            object->connectParams.connectType = ConnectType_ByDescription;
         }
         else if(obj->Has(index)) 
         {
             object->connectParams.connectId = obj->Get(index)->Int32Value();
             object->connectParams.connectType = ConnectType_ByIndex;
         }
-        else if(obj->Has(description)) 
-        {
-            ToCString(obj->Get(description)->ToString(), &object->connectParams.connectString);
-            object->connectParams.connectType = ConnectType_ByDescription;
-        }
-
         object->connectParams.vid = 0;
         object->connectParams.pid = 0;
         if(obj->Has(vid)) 
@@ -196,7 +194,7 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     {
         return NodeFtdi::ThrowTypeError("new expects a object as argument");
     }
-
+    
     object->Wrap(args.This());
 
     return args.This();
@@ -368,9 +366,11 @@ FT_STATUS NodeFtdi::OpenDevice()
 
         uv_mutex_lock(&vidPidMutex); 
         uv_mutex_lock(&libraryMutex);  
+
 #ifndef WIN32
         FT_SetVIDPID(connectParams.vid, connectParams.pid);
 #endif
+
         status = FT_OpenEx(arg, flags, &ftHandle);
         uv_mutex_unlock(&libraryMutex); 
         uv_mutex_unlock(&vidPidMutex);  

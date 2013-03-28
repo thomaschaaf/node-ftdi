@@ -19,13 +19,19 @@ typedef enum
     ConnectType_ByLocationId,
 } ConnectType_t;
 
-typedef struct 
+typedef struct ConnectionParams_t
 {
     ConnectType_t connectType;
     char *connectString;
     int32_t connectId;
     int pid;
     int vid;
+
+    ConnectionParams_t()
+    {
+        connectString = NULL;
+    }
+
 } ConnectionParams_t;
 
 typedef struct 

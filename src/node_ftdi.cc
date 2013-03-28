@@ -14,6 +14,8 @@
 #ifndef WIN32
     #include <unistd.h>
     #include <time.h>
+#else
+    #include <windows.h>
 #endif
 
 using namespace std;
@@ -26,7 +28,7 @@ using namespace node_ftdi;
  * Local defines
  **********************************/
 #define EVENT_MASK (FT_EVENT_RXCHAR)
-#define WAIT_TIME_MILLISECONDS      500
+#define WAIT_TIME_MILLISECONDS      250
 
 #define NANOSECS_PER_SECOND         1000000000
 #define NANOSECS_PER_MILISECOND     1000000
@@ -151,12 +153,12 @@ Handle<Value> NodeFtdi::New(const Arguments& args)
     {
         Local<Object> obj = args[0]->ToObject();
 
-        // if(obj->Has(locationId)) 
-        // {
-        //     object->connectParams.connectId = obj->Get(locationId)->Int32Value();
-        //     object->connectParams.connectType = ConnectType_ByLocationId;
-        // }
-        // else 
+        if(obj->Has(locationId) && obj->Get(locationId)->Int32Value() != 0) 
+        {
+            object->connectParams.connectId = obj->Get(locationId)->Int32Value();
+            object->connectParams.connectType = ConnectType_ByLocationId;
+        }
+        else 
         if(obj->Has(serial)) 
         {
             ToCString(obj->Get(serial)->ToString(), &object->connectParams.connectString);
@@ -749,7 +751,7 @@ UCHAR GetParity(const char* string)
 
 void ToCString(Local<String> val, char ** ptr) 
 {
-    *ptr = (char *) malloc (val->Utf8Length());
+    *ptr = (char *) malloc (val->Utf8Length() + 1);
     val->WriteAscii(*ptr, 0, -1, 0);
 }
 

@@ -17,6 +17,7 @@
 **Make sure you installed the ftdi driver: [ftdi](http://www.ftdichip.com/Drivers/D2XX.htm)**
 
 If you're are using a Linux distribution or Mac OS X you can run the **install.sh** script file to install the ftdi driver...
+For Windows the libs are shipped with this module.
 
 # Installation
 

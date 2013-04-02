@@ -12,14 +12,13 @@
   88     88  88ee8 88 
 </pre>
 
-# Installing
+# Prerequisites:
 
-## Prerequisites:
+**Make sure you installed the ftdi driver: [ftdi](http://www.ftdichip.com/Drivers/D2XX.htm)**
 
-Install the driver: [ftdi](http://www.ftdichip.com/Drivers/D2XX.htm)
+If you're are using a Linux distribution or Mac OS X you can run the **install.sh** script file to install the ftdi driver...
 
-If you're are using a Linux distribution or Mac OS X you can run the install.sh script file...
-
+# Installation
 
     npm install ftdi
 
@@ -36,7 +35,6 @@ Ensure that you have at a minimum the xCode Command Line Tools installed appropr
 ### Linux:
 
 You know what you need for you system, basically your appropriate analog of build-essential. Keep rocking!
-
 
 # Usage
 

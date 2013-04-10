@@ -808,13 +808,32 @@ FT_STATUS FtdiDevice::PrepareAsyncRead()
 void FtdiDevice::WaitForReadOrCloseEvent()
 {
     DWORD rxBytes = 0;
+
     pthread_mutex_lock(&dataEventHandle.eMutex);
 
     // Only sleep in case there is nothing to do
-    FT_GetQueueStatus(ftHandle, &rxBytes);
-    if(deviceState != DeviceState_Closing && rxBytes == 0)
+    if(FT_GetQueueStatus(ftHandle, &rxBytes) == FT_OK && deviceState != DeviceState_Closing && rxBytes == 0)
     {
-        pthread_cond_wait(&dataEventHandle.eCondVar, &dataEventHandle.eMutex);
+        struct timespec ts;
+        struct timeval tp;
+        
+        gettimeofday(&tp, NULL);
+
+        int additionalSeconds = 0;
+        int additionalMilisecs = 0;
+        additionalSeconds = (WAIT_TIME_MILLISECONDS  / MILISECS_PER_SECOND);
+        additionalMilisecs = (WAIT_TIME_MILLISECONDS % MILISECS_PER_SECOND);
+
+        long additionalNanosec = tp.tv_usec * 1000 + additionalMilisecs * NANOSECS_PER_MILISECOND;
+        additionalSeconds += (additionalNanosec / NANOSECS_PER_SECOND);
+        additionalNanosec = (additionalNanosec % NANOSECS_PER_SECOND);
+
+        /* Convert from timeval to timespec */
+        ts.tv_sec  = tp.tv_sec;
+        ts.tv_nsec = additionalNanosec;
+        ts.tv_sec += additionalSeconds;
+
+        pthread_cond_timedwait(&dataEventHandle.eCondVar, &dataEventHandle.eMutex, &ts);
     }
     pthread_mutex_unlock(&dataEventHandle.eMutex);
 }

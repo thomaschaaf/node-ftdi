@@ -51,8 +51,6 @@ void InitializeList(Handle<Object> target)
     constructor_template->SetClassName(String::NewSymbol("FtdiDriver"));
     constructor_template->InstanceTemplate()->SetInternalFieldCount(1);
 
-    // NODE_SET_PROTOTYPE_METHOD(constructor_template, "open", Open);
-
     NODE_SET_METHOD(constructor_template, "findAll", FindAll);
     target->Set(String::NewSymbol("FtdiDriver"), constructor_template->GetFunction());
 
@@ -83,21 +81,15 @@ void FindAllAsync(uv_work_t* req)
     uv_mutex_unlock(&libraryMutex);
     if (ftStatus == FT_OK) 
     {
-        //printf("NumDevices: %d\r\n", numDevs);
         if (numDevs > 0) 
         {
             // allocate storage for list based on numDevs
             listBaton->devInfo =  (FT_DEVICE_LIST_INFO_NODE*) malloc(sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs); 
+            
             // get the device information list
             uv_mutex_lock(&libraryMutex);
             ftStatus = FT_GetDeviceInfoList(listBaton->devInfo, &numDevs); 
             uv_mutex_unlock(&libraryMutex);
-
-            // for(int i = 0; i < numDevs; i++)
-            // {
-            //     printf("%s\r\n", listBaton->devInfo[i].Description);
-            //     printf("ID: %d\r\n", listBaton->devInfo[i].ID);
-            // }
         }
     }
     uv_mutex_unlock(&vidPidMutex);  
@@ -116,23 +108,23 @@ void FindAllFinished(uv_work_t* req)
 
     if(listBaton->status == FT_OK)
     {
-        //printf("ListLength: %d\n", listBaton->listLength);
         // Determine the length of the resulting list 
         int resultListLength = 0;
         for (DWORD i = 0; i < listBaton->listLength; i++) 
         {
-             //printf("\tFound: %s [Flag: %x], BatonVid: %x, BatonPid: %x\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].Flags, listBaton->vid, listBaton->pid);
             if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
             {
                 resultListLength++;
             }
         }
 
+        // Create Java Script Array for the resulting devices
         Local<Array> array= Array::New(resultListLength);
         
         int index = 0;
         for (DWORD i = 0; i < listBaton->listLength; i++) 
         {
+            // Add device to the array in case it matches the criteria
             if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], listBaton->vid, listBaton->pid))
             {
                 Local<Object> obj = Object::New();
@@ -142,7 +134,6 @@ void FindAllFinished(uv_work_t* req)
                 obj->Set(String::New(DEVICE_INDEX_TAG), Number::New(i));
                 obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
                 obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
-                //printf("DevFound: [Descr: %s, Loc: %d]\r\n", listBaton->devInfo[i].Description, listBaton->devInfo[i].LocId);
                 array->Set(index++, obj);
             }
         }

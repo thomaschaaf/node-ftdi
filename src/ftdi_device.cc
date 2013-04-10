@@ -94,6 +94,7 @@ void ToCString(Local<String> val, char ** ptr);
 FtdiDevice::FtdiDevice() 
 {
     deviceState = DeviceState_Idle;
+    uv_mutex_init(&closeMutex);
 };
 
 FtdiDevice::~FtdiDevice() 
@@ -131,24 +132,30 @@ Handle<Value> FtdiDevice::New(const Arguments& args)
 
     FtdiDevice* object = new FtdiDevice();
 
+    // Check if the argument is an object
     if(args[0]->IsObject()) 
     {
         Local<Object> obj = args[0]->ToObject();
 
-
+        /**
+         * Determine how to connect to the device, we have the following possibilities:
+         *   1) By location id
+         *   2) By serial Number
+         *   3) By description
+         *   4) By index
+         * In this order we check for availability of the parameter and the first valid we found is taken
+         */
         if(obj->Has(locationId) && obj->Get(locationId)->Int32Value() != 0) 
         {
             object->connectParams.connectId = obj->Get(locationId)->Int32Value();
             object->connectParams.connectType = ConnectType_ByLocationId;
         }
-        else 
-        if(obj->Has(serial)) 
+        else if(obj->Has(serial) && obj->Get(serial)->ToString()->Length() > 0) 
         {
             ToCString(obj->Get(serial)->ToString(), &object->connectParams.connectString);
             object->connectParams.connectType = ConnectType_BySerial;
         }
-        else 
-        if(obj->Has(description)) 
+        else if(obj->Has(description) && obj->Get(description)->ToString()->Length() > 0) 
         {
             ToCString(obj->Get(description)->ToString(), &object->connectParams.connectString);
             object->connectParams.connectType = ConnectType_ByDescription;
@@ -168,8 +175,8 @@ Handle<Value> FtdiDevice::New(const Arguments& args)
         {
             object->connectParams.pid = obj->Get(pid)->Int32Value();
         }
-        // printf("Device Info [Vid: %x, Pid: %x]\r\n", object->connectParams.vid, object->connectParams.pid);
     }
+    // if the argument is a number we connect by index to the device
     else if(args[0]->IsNumber())
     {
         object->connectParams.connectId = (int) args[0]->NumberValue();
@@ -192,7 +199,7 @@ Handle<Value> FtdiDevice::Open(const Arguments& args)
 {
     HandleScope scope;
 
-    // Get Object
+    // Get Device Object
     FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
     device->deviceState = DeviceState_Open;
 
@@ -222,6 +229,7 @@ Handle<Value> FtdiDevice::Open(const Arguments& args)
 
     OpenBaton_t* baton = new OpenBaton_t();
 
+    // Extract the connection parameters
     device->ExtractDeviceSettings(args[0]->ToObject());
     
     baton->readCallback =  Persistent<Value>::New(readCallback);
@@ -264,6 +272,10 @@ void FtdiDevice::OpenFinished(uv_work_t* req)
     OpenBaton_t* baton = static_cast<OpenBaton_t*>(req->data);
     FtdiDevice* device = baton->device;
  
+    /**
+     * If the open process was sucessful, we start the read thread
+     * which waits for data events sents from the device.
+     */ 
     if(baton->status == FT_OK)
     {
         ReadBaton_t* readBaton = new ReadBaton_t();
@@ -271,7 +283,7 @@ void FtdiDevice::OpenFinished(uv_work_t* req)
         readBaton->device = device;
         readBaton->callback = baton->readCallback;
 
-        uv_mutex_init(&device->closeMutex);
+        // Lock the Close mutex (it is needed to signal when async read has stoped reading)
         uv_mutex_lock(&device->closeMutex);
 
         uv_work_t* req = new uv_work_t();
@@ -279,6 +291,7 @@ void FtdiDevice::OpenFinished(uv_work_t* req)
         uv_queue_work(uv_default_loop(), req, FtdiDevice::ReadDataAsync, (uv_after_work_cb)FtdiDevice::ReadCallback);
     }
 
+    // Check for callback function
     if(baton->callback->IsFunction())
     {
         Handle<Value> argv[1];
@@ -299,21 +312,25 @@ void FtdiDevice::OpenFinished(uv_work_t* req)
     delete baton;
 }
 
+
 FT_STATUS FtdiDevice::OpenDevice()
 {
     FT_STATUS status;
 
+    // For open by Index case
     if(connectParams.connectType == ConnectType_ByIndex)
     {
         uv_mutex_lock(&libraryMutex); 
 #ifndef WIN32
+        // In case of Linux / Mac we have to set the VID PID of the
+        // device we want to connect to
         FT_SetVIDPID(connectParams.vid, connectParams.pid);
 #endif
         status = FT_Open(connectParams.connectId, &ftHandle);
         uv_mutex_unlock(&libraryMutex);  
-        // printf("OpenDeviceByIndex [Index: %d]\r\n", connectParams.connectId);
         return status;
     }
+    // other cases
     else
     {
         PVOID arg;
@@ -356,6 +373,8 @@ FT_STATUS FtdiDevice::OpenDevice()
         uv_mutex_lock(&libraryMutex);  
 
 #ifndef WIN32
+        // In case of Linux / Mac we have to set the VID PID of the
+        // device we want to connect to
         FT_SetVIDPID(connectParams.vid, connectParams.pid);
 #endif
 
@@ -379,8 +398,11 @@ void FtdiDevice::ReadDataAsync(uv_work_t* req)
 
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
     FtdiDevice* device = baton->device;
+
+    // start permanent read loop
     while(1)
     {
+        // Wait for data or close event
         device->WaitForReadOrCloseEvent();
 
         // Check Queue Status
@@ -395,6 +417,7 @@ void FtdiDevice::ReadDataAsync(uv_work_t* req)
             return;
         }
 
+        // Read available data if any
         if(RxBytes > 0)
         {
             baton->data = new uint8_t[RxBytes];
@@ -429,6 +452,7 @@ void FtdiDevice::ReadCallback(uv_work_t* req)
     ReadBaton_t* baton = static_cast<ReadBaton_t*>(req->data);
     FtdiDevice* device = baton->device;
 
+    // Execute the callback in case we have one and we have read some data
     if(baton->status != FT_OK || (baton->length != 0 && baton->callback->IsFunction()))
     {
         Handle<Value> argv[2];
@@ -461,15 +485,18 @@ void FtdiDevice::ReadCallback(uv_work_t* req)
         baton->length = 0;
     }
 
+    // Check if we want close the device
     if(device->deviceState == DeviceState_Closing)
     {
+        // Signal that we have stoped reading
         uv_mutex_unlock(&device->closeMutex);
         baton->callback.Dispose();
         delete baton;
         delete req;
     }
     else
-    {
+    {   
+        // Restart reading loop
         uv_queue_work(uv_default_loop(), req, FtdiDevice::ReadDataAsync, (uv_after_work_cb)FtdiDevice::ReadCallback);
     }
 }
@@ -489,7 +516,7 @@ Handle<Value> FtdiDevice::Write(const Arguments& args)
     }
     Local<Object> buffer = Local<Object>::New(args[0]->ToObject());
 
-    // Get Object
+    // Obtain Device Object
     FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
     WriteBaton_t* baton = new WriteBaton_t();
 
@@ -559,9 +586,10 @@ Handle<Value> FtdiDevice::Close(const Arguments& args)
 {
     HandleScope scope;
 
-    // Get Object
+    // Obtain Device Object
     FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
 
+    // Check the device state
     if(device->deviceState != DeviceState_Open)
     {
         // callback
@@ -587,6 +615,7 @@ Handle<Value> FtdiDevice::Close(const Arguments& args)
         req->data = baton;
         uv_queue_work(uv_default_loop(), req, FtdiDevice::CloseAsync, (uv_after_work_cb)FtdiDevice::CloseFinished);
     }
+
     return scope.Close(v8::Undefined());
 }
 
@@ -596,9 +625,14 @@ void FtdiDevice::CloseAsync(uv_work_t* req)
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
     FtdiDevice* device = baton->device;
 
+    // Send Event for Read Loop
     device->SignalCloseEvent();
-    uv_mutex_lock(&device->closeMutex);
 
+    // Wait till read loop finishes
+    uv_mutex_lock(&device->closeMutex);
+    uv_mutex_unlock(&device->closeMutex);
+
+    // Close the device
     uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_Close(device->ftHandle);
     uv_mutex_unlock(&libraryMutex);  
@@ -732,6 +766,11 @@ UCHAR GetParity(const char* string)
     return FT_PARITY_NONE;
 }
 
+/**
+ *  Generates a new C String. It allocates memory for the new
+ *  string be sure to free the memory as soon as you dont need
+ *  it anymore.
+ */
 void ToCString(Local<String> val, char ** ptr) 
 {
     *ptr = new char[val->Utf8Length() + 1];

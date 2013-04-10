@@ -85,12 +85,21 @@ class FtdiDevice : public ObjectWrap
         FT_STATUS SetDeviceSettings();
         FT_STATUS OpenDevice();
 
+        FT_STATUS PrepareAsyncRead();
+        void WaitForReadOrCloseEvent();
+        void SignalCloseEvent();
+
         FT_HANDLE ftHandle;
         DeviceParams_t deviceParams;
         ConnectionParams_t connectParams;
 
         DeviceState_t deviceState;
-        void* syncContext;
+
+#ifndef WIN32
+        EVENT_HANDLE dataEventHandle;
+#else
+        HANDLE dataEventHandle;
+#endif
         uv_mutex_t closeMutex;
         bool closed;
 };

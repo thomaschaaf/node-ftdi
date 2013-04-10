@@ -48,13 +48,6 @@ typedef struct
 typedef struct
 {
     FtdiDevice* device;
-#ifndef WIN32
-    EVENT_HANDLE eh;
-    struct timespec ts;
-    struct timeval tp;
-#else
-    HANDLE hEvent;
-#endif
     uint8_t* data;
     DWORD length;
     Persistent<Value> callback;
@@ -75,13 +68,6 @@ typedef struct CloseBaton_t
     FtdiDevice* device;
     Persistent<Value> callback;
     FT_STATUS status;
-    uv_mutex_t closeMutex;
-
-    CloseBaton_t()
-    {
-        uv_mutex_init(&closeMutex);
-        uv_mutex_lock(&closeMutex);
-    }
 
 } CloseBaton_t;
 
@@ -89,9 +75,6 @@ typedef struct CloseBaton_t
 /**********************************
  * Local Helper Functions protoypes
  **********************************/
-FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle);
-void WaitForReadEvent(ReadBaton_t *baton);
-
 UCHAR GetWordLength(int wordLength);
 UCHAR GetStopBits(int stopBits);
 UCHAR GetParity(const char* string);
@@ -284,9 +267,12 @@ void FtdiDevice::OpenFinished(uv_work_t* req)
     if(baton->status == FT_OK)
     {
         ReadBaton_t* readBaton = new ReadBaton_t();
-        PrepareAsyncRead(readBaton, device->ftHandle);
+        device->PrepareAsyncRead();
         readBaton->device = device;
         readBaton->callback = baton->readCallback;
+
+        uv_mutex_init(&device->closeMutex);
+        uv_mutex_lock(&device->closeMutex);
 
         uv_work_t* req = new uv_work_t();
         req->data = readBaton;
@@ -395,16 +381,7 @@ void FtdiDevice::ReadDataAsync(uv_work_t* req)
     FtdiDevice* device = baton->device;
     while(1)
     {
-        WaitForReadEvent(baton);
-        
-        // Check if we are closing the device
-        if(device->deviceState == DeviceState_Closing)
-        {
-            uv_mutex_lock(&libraryMutex);  
-            FT_Purge(device->ftHandle, FT_PURGE_RX | FT_PURGE_TX);
-            uv_mutex_unlock(&libraryMutex);  
-            return;
-        }
+        device->WaitForReadOrCloseEvent();
 
         // Check Queue Status
         uv_mutex_lock(&libraryMutex);  
@@ -432,6 +409,15 @@ void FtdiDevice::ReadDataAsync(uv_work_t* req)
             
             baton->status = ftStatus;
             baton->length = BytesReceived;
+            return;
+        }
+
+        // Check if we are closing the device
+        if(device->deviceState == DeviceState_Closing)
+        {
+            uv_mutex_lock(&libraryMutex);  
+            FT_Purge(device->ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+            uv_mutex_unlock(&libraryMutex);  
             return;
         }
     }
@@ -477,7 +463,7 @@ void FtdiDevice::ReadCallback(uv_work_t* req)
 
     if(device->deviceState == DeviceState_Closing)
     {
-        uv_mutex_unlock((uv_mutex_t *) device->syncContext);
+        uv_mutex_unlock(&device->closeMutex);
         baton->callback.Dispose();
         delete baton;
         delete req;
@@ -610,10 +596,8 @@ void FtdiDevice::CloseAsync(uv_work_t* req)
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
     FtdiDevice* device = baton->device;
 
-    device->syncContext = &baton->closeMutex;
-    device->deviceState = DeviceState_Closing;
-
-    uv_mutex_lock(&baton->closeMutex);
+    device->SignalCloseEvent();
+    uv_mutex_lock(&device->closeMutex);
 
     uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_Close(device->ftHandle);
@@ -771,56 +755,60 @@ Handle<Value> FtdiDevice::ThrowLastError(std::string message)
  * Platform dependet Section
  *****************************/
 #ifndef WIN32
-
-FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
+FT_STATUS FtdiDevice::PrepareAsyncRead()
 {
     FT_STATUS status;
-    pthread_mutex_init(&(baton->eh).eMutex, NULL);
-    pthread_cond_init(&(baton->eh).eCondVar, NULL);
+    pthread_mutex_init(&dataEventHandle.eMutex, NULL);
+    pthread_cond_init(&dataEventHandle.eCondVar, NULL);
     uv_mutex_lock(&libraryMutex);  
-    status = FT_SetEventNotification(handle, EVENT_MASK, (PVOID)&(baton->eh));
+    status = FT_SetEventNotification(ftHandle, EVENT_MASK, (PVOID) &dataEventHandle);
     uv_mutex_unlock(&libraryMutex);  
     return status;
 }
 
-
-void WaitForReadEvent(ReadBaton_t *baton)
+void FtdiDevice::WaitForReadOrCloseEvent()
 {
-    gettimeofday(&baton->tp, NULL);
+    DWORD rxBytes = 0;
+    pthread_mutex_lock(&dataEventHandle.eMutex);
 
-    int additionalSeconds = 0;
-    int additionalMilisecs = 0;
-    additionalSeconds = (WAIT_TIME_MILLISECONDS  / MILISECS_PER_SECOND);
-    additionalMilisecs = (WAIT_TIME_MILLISECONDS % MILISECS_PER_SECOND);
+    // Only sleep in case there is nothing to do
+    FT_GetQueueStatus(ftHandle, &rxBytes);
+    if(deviceState != DeviceState_Closing && rxBytes == 0)
+    {
+        pthread_cond_wait(&dataEventHandle.eCondVar, &dataEventHandle.eMutex);
+    }
+    pthread_mutex_unlock(&dataEventHandle.eMutex);
+}
 
-    long additionalNanosec = baton->tp.tv_usec * 1000 + additionalMilisecs * NANOSECS_PER_MILISECOND;
-    additionalSeconds += (additionalNanosec / NANOSECS_PER_SECOND);
-    additionalNanosec = (additionalNanosec % NANOSECS_PER_SECOND);
-
-    /* Convert from timeval to timespec */
-    baton->ts.tv_sec  = baton->tp.tv_sec;
-    baton->ts.tv_nsec = additionalNanosec;
-    baton->ts.tv_sec += additionalSeconds;
-
-    pthread_mutex_lock(&(baton->eh).eMutex);
-    pthread_cond_timedwait(&(baton->eh).eCondVar, &(baton->eh).eMutex, &baton->ts);
-    pthread_mutex_unlock(&(baton->eh).eMutex);
+void FtdiDevice::SignalCloseEvent()
+{
+    pthread_mutex_lock(&dataEventHandle.eMutex);
+    deviceState = DeviceState_Closing;
+    pthread_cond_signal(&dataEventHandle.eCondVar);
+    pthread_mutex_unlock(&dataEventHandle.eMutex);
 }
 
 #else
-FT_STATUS PrepareAsyncRead(ReadBaton_t *baton, FT_HANDLE handle)
+
+FT_STATUS FtdiDevice::PrepareAsyncRead()
 {
     FT_STATUS status;
-    baton->hEvent = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
+    dataEventHandle = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
     uv_mutex_lock(&libraryMutex);  
-    status = FT_SetEventNotification(handle, EVENT_MASK, baton->hEvent);
+    status = FT_SetEventNotification(ftHandle, EVENT_MASK, dataEventHandle);
     uv_mutex_unlock(&libraryMutex);  
     return status;
 }
 
-void WaitForReadEvent(ReadBaton_t *baton)
+void FtdiDevice::WaitForReadOrCloseEvent()
 {
-    WaitForSingleObject(baton->hEvent, WAIT_TIME_MILLISECONDS);
+    WaitForSingleObject(dataEventHandle, WAIT_TIME_MILLISECONDS);
+}
+
+void FtdiDevice::SignalCloseEvent()
+{
+    deviceState = DeviceState_Closing;
+    SetEvent(dataEventHandle);
 }
 #endif
 

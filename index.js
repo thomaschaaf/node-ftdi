@@ -80,7 +80,13 @@ FtdiDevice.prototype.write = function(data, callback) {
  */
 FtdiDevice.prototype.close = function(callback) {
 	var self = this;
+	if (this.isClosing) {
+		if (callback) callback(err);
+		return;
+	}
+	this.isClosing = true;
 	this.FTDIDevice.close(function(err) {
+		self.isClosing = false;
 		if (err) {
 			self.emit('error', err);
 		} else {

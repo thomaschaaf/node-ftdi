@@ -1,7 +1,7 @@
 var util = require('util'),
     EventEmitter = require('events').EventEmitter,
     ftdi = require('bindings')('ftdi.node'),
-		FTDIDriver = ftdi.FtdiDriver,
+    FTDIDriver = ftdi.FtdiDriver,
     FTDIDevice = ftdi.FtdiDevice;
 
 /**
@@ -10,15 +10,15 @@ var util = require('util'),
  * @param {Object || Number} settings The device settings (locationId, serial, index, description).
  */
 function FtdiDevice(settings) {
-	if (typeof(settings) === 'number') {
-		settings = { index: settings };
-	}
+  if (typeof(settings) === 'number') {
+    settings = { index: settings };
+  }
 
-	EventEmitter.call(this);
+  EventEmitter.call(this);
 
-	this.deviceSettings = settings;
+  this.deviceSettings = settings;
 
-	this.FTDIDevice = new FTDIDevice(settings);
+  this.FTDIDevice = new FTDIDevice(settings);
 }
 
 util.inherits(FtdiDevice, EventEmitter);
@@ -31,24 +31,24 @@ util.inherits(FtdiDevice, EventEmitter);
  *                             `function(err){}`
  */
 FtdiDevice.prototype.open = function(settings, callback) {
-	var self = this;
-	this.connectionSettings = settings;
-	this.on('error', function(err) {
-		self.close();
-	});
-	this.FTDIDevice.open(this.connectionSettings, function(err, data) {
-		if (err) {
-			self.emit('error', err);
-		}
-		self.emit('data', data);
-	}, function(err) {
-		if (err) {
-			self.emit('error', err);
-		} else {
-			self.emit('open');
-		}
-		if (callback) { callback(err); }
-	});
+  var self = this;
+  this.connectionSettings = settings;
+  this.on('error', function(err) {
+    self.close();
+  });
+  this.FTDIDevice.open(this.connectionSettings, function(err, data) {
+    if (err) {
+      self.emit('error', err);
+    }
+    self.emit('data', data);
+  }, function(err) {
+    if (err) {
+      self.emit('error', err);
+    } else {
+      self.emit('open');
+    }
+    if (callback) { callback(err); }
+  });
 };
 
 /**
@@ -59,16 +59,16 @@ FtdiDevice.prototype.open = function(settings, callback) {
  *                                    `function(err){}`
  */
 FtdiDevice.prototype.write = function(data, callback) {
-	if (!Buffer.isBuffer(data)) {
+  if (!Buffer.isBuffer(data)) {
     data = new Buffer(data);
   }
   var self = this;
-	this.FTDIDevice.write(data, function(err) {
-		if (err) {
-			self.emit('error', err);
-		}
-		if (callback) { callback(err); }
-	});
+  this.FTDIDevice.write(data, function(err) {
+    if (err) {
+      self.emit('error', err);
+    }
+    if (callback) { callback(err); }
+  });
 };
 
 /**
@@ -79,46 +79,45 @@ FtdiDevice.prototype.write = function(data, callback) {
  *                             `function(err){}`
  */
 FtdiDevice.prototype.close = function(callback) {
-	var self = this;
-	if (this.isClosing) {
-		if (callback) callback(null);
-		return;
-	}
-	this.isClosing = true;
-	this.FTDIDevice.close(function(err) {
-		self.isClosing = false;
-		if (err) {
-			self.emit('error', err);
-		} else {
-			self.emit('close');
-		}
-		self.removeAllListeners();
-		if (callback) callback(err);
-	});
+  var self = this;
+  if (this.isClosing) {
+    return;
+  }
+  this.isClosing = true;
+  this.FTDIDevice.close(function(err) {
+    self.isClosing = false;
+    if (err) {
+      self.emit('error', err);
+    } else {
+      self.emit('close');
+    }
+    self.removeAllListeners();
+    if (callback) callback(err);
+  });
 };
 
 module.exports = {
 
-	FtdiDevice: FtdiDevice,
+  FtdiDevice: FtdiDevice,
 
-	/**
-	 * Calls the callback with an array of found devices.
-	 * @param  {Number}   vid      The vendor id. [optional]
-	 * @param  {Number}   pid      The product id. [optional]
-	 * @param  {Function} callback The function, that will be called when finished finding.
-	 *                             `function(err, devices){}` devices is an array of device objects.
-	 */
-	find: function(vid, pid, callback) {
-		if (arguments.length === 2) {
-			callback = pid;
-			pid = null;
-		} else if (arguments.length === 1) {
-			callback = vid;
-			vid = null;
-			pid = null;
-		}
+  /**
+   * Calls the callback with an array of found devices.
+   * @param  {Number}   vid      The vendor id. [optional]
+   * @param  {Number}   pid      The product id. [optional]
+   * @param  {Function} callback The function, that will be called when finished finding.
+   *                             `function(err, devices){}` devices is an array of device objects.
+   */
+  find: function(vid, pid, callback) {
+    if (arguments.length === 2) {
+      callback = pid;
+      pid = null;
+    } else if (arguments.length === 1) {
+      callback = vid;
+      vid = null;
+      pid = null;
+    }
 
-		FTDIDriver.findAll(vid, pid, callback);
-	}
+    FTDIDriver.findAll(vid, pid, callback);
+  }
 
 };

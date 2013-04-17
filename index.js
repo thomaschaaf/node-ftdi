@@ -81,7 +81,7 @@ FtdiDevice.prototype.write = function(data, callback) {
 FtdiDevice.prototype.close = function(callback) {
 	var self = this;
 	if (this.isClosing) {
-		if (callback) callback(err);
+		if (callback) callback(null);
 		return;
 	}
 	this.isClosing = true;

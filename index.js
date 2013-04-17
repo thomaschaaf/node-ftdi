@@ -36,6 +36,7 @@ FtdiDevice.prototype.open = function(settings, callback) {
   this.on('error', function(err) {
     self.close();
   });
+  this.isClosing = false;
   this.FTDIDevice.open(this.connectionSettings, function(err, data) {
     if (err) {
       self.emit('error', err);
@@ -85,7 +86,6 @@ FtdiDevice.prototype.close = function(callback) {
   }
   this.isClosing = true;
   this.FTDIDevice.close(function(err) {
-    self.isClosing = false;
     if (err) {
       self.emit('error', err);
     } else {

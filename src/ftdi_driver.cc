@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "ftdi_driver.h"
 #include "ftdi_constants.h"
@@ -85,11 +87,28 @@ void FindAllAsync(uv_work_t* req)
         {
             // allocate storage for list based on numDevs
             listBaton->devInfo =  (FT_DEVICE_LIST_INFO_NODE*) malloc(sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs); 
+            memset(listBaton->devInfo, 0, sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs);
             
             // get the device information list
             uv_mutex_lock(&libraryMutex);
             ftStatus = FT_GetDeviceInfoList(listBaton->devInfo, &numDevs); 
             uv_mutex_unlock(&libraryMutex);
+
+            for(DWORD i = 0; i < numDevs; i++)
+            {
+                if(strlen(listBaton->devInfo[i].SerialNumber) == 0)
+                {
+                    FT_ListDevices((PVOID)i, listBaton->devInfo[i].SerialNumber, FT_LIST_BY_INDEX | FT_OPEN_BY_SERIAL_NUMBER);
+                }
+                if(strlen(listBaton->devInfo[i].Description) == 0)
+                {
+                    FT_ListDevices((PVOID)i, listBaton->devInfo[i].Description, FT_LIST_BY_INDEX | FT_OPEN_BY_DESCRIPTION);
+                }
+                if(listBaton->devInfo[i].LocId == 0)
+                {
+                    FT_ListDevices((PVOID)i, &listBaton->devInfo[i].LocId, FT_LIST_BY_INDEX | FT_OPEN_BY_LOCATION);
+                }
+            }
         }
     }
     uv_mutex_unlock(&vidPidMutex);  

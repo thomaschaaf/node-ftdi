@@ -3,6 +3,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <string.h>
 
 #define WAIT_TIME_MILLISECONDS      250
 
@@ -22,7 +23,7 @@ typedef struct
 	EVENT_HANDLE rxEvent;
 } DeviceParams_t;
 
-
+#ifdef CHW400
 DeviceParams_t deviceList[] = {
 	{
 		0,
@@ -43,11 +44,87 @@ DeviceParams_t deviceList[] = {
 		0,
 	},
 };
+#elif BNET
+DeviceParams_t deviceList[] = {
+	{
+		0,
+		0x18D9,
+		0x01A0,
+		(char*)"00000225",
+		38400,
+		0,
+		0,
+	},
+	{
+		0,
+		0x18D9,
+		0x01A0,
+		(char*)"00000210",
+		38400,
+		0,
+		0,
+	},
+	{
+		0,
+		0x18D9,
+		0x01A0,
+		(char*)"FTUD6GBW",
+		38400,
+		0,
+		0,
+	},
+};
+#endif
 
+pthread_t findThread;
+
+FT_STATUS Find(int vid, int pid);
 FT_STATUS OpenDevice(DeviceParams_t* device);
 void* ReadData(void* ptr);
 void WaitForData(DeviceParams_t* device);
 
+
+FT_STATUS Find(int vid, int pid)
+{
+	FT_STATUS status;
+	FT_SetVIDPID(vid, pid);
+
+	DWORD numDevs = 0;
+	status = FT_CreateDeviceInfoList(&numDevs);
+
+  if (numDevs > 0) 
+  {
+      // allocate storage for list based on numDevs
+      FT_DEVICE_LIST_INFO_NODE *devInfo =  new FT_DEVICE_LIST_INFO_NODE[numDevs]; 
+      memset(devInfo, 0, numDevs*sizeof(FT_DEVICE_LIST_INFO_NODE));
+
+      // get the device information list
+      status = FT_GetDeviceInfoList(devInfo, &numDevs); 
+
+			printf("\nFound Devices: %d\r\n", numDevs);
+      for(int i = 0; i < numDevs; i++)
+      {
+      	// FT_HANDLE handy;
+
+      	// FT_GetDeviceInfoDetail (i, 
+      	// 				&devInfo[i].Flags, 
+							// 	&devInfo[i].Type,
+							// 	&devInfo[i].ID,
+							// 	&devInfo[i].LocId,
+							// 	devInfo[i].SerialNumber,
+							// 	&devInfo[i].Description,
+							// 	&handy);
+
+      	printf("%s\r\n", devInfo[i].Description);
+	      printf("%s\r\n", devInfo[i].SerialNumber);
+	      printf("Open: %d\n", devInfo[i].Flags & 0x1);
+      }
+
+      delete devInfo;
+  }
+  return status;
+  
+}
 
 FT_STATUS OpenDevice(DeviceParams_t* device)
 {
@@ -67,12 +144,12 @@ FT_STATUS OpenDevice(DeviceParams_t* device)
 
 	if(status == FT_OK)
 	{
-		pthread_mutex_init(&device->rxEvent.eMutex, NULL);
-    	pthread_cond_init(&device->rxEvent.eCondVar, NULL);
+		// pthread_mutex_init(&device->rxEvent.eMutex, NULL);
+    // pthread_cond_init(&device->rxEvent.eCondVar, NULL);
     	
-    	status = FT_SetEventNotification(device->handle, FT_EVENT_RXCHAR, (PVOID) &(device->rxEvent));
+    // status = FT_SetEventNotification(device->handle, FT_EVENT_RXCHAR, (PVOID) &(device->rxEvent));
     
-		pthread_create(&(device->thread), NULL, ReadData, (void*)device);
+		// pthread_create(&(device->thread), NULL, ReadData, (void*)device);
 	}
 
 	printf ("Open state [%x]\r\n", status);
@@ -99,7 +176,7 @@ void* ReadData(void* ptr)
             return NULL;
         }
 
-        printf("RX %s [%d]\r\n", device->serial, RxBytes);
+        //printf("RX %s [%d]\r\n", device->serial, RxBytes);
         if(RxBytes > 0)
         {
         	DWORD BytesReceived;
@@ -142,6 +219,15 @@ void WaitForData(DeviceParams_t* device)
     pthread_mutex_unlock(&device->rxEvent.eMutex);
 }
 
+void* FindThread(void* ptr)
+{
+	while(1)
+	{
+		Find(deviceList[0].vid, deviceList[0].pid);
+		sleep(1);
+	}
+}
+
 
 int main (int argc, char **argv) 
 {
@@ -151,6 +237,7 @@ int main (int argc, char **argv)
 	printf("Open Device 2\r\n");
 	OpenDevice(&deviceList[1]);
 
+		pthread_create(&findThread, NULL, FindThread, NULL);
 	while(true)
 	{
 		sleep(1);

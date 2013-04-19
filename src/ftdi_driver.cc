@@ -94,20 +94,14 @@ void FindAllAsync(uv_work_t* req)
             ftStatus = FT_GetDeviceInfoList(listBaton->devInfo, &numDevs); 
             uv_mutex_unlock(&libraryMutex);
 
+            // fallback for wrong info in several cases... when connected multiple devices and unplug one...
             for(DWORD i = 0; i < numDevs; i++)
             {
-                if(strlen(listBaton->devInfo[i].SerialNumber) == 0)
-                {
-                    FT_ListDevices((PVOID)i, listBaton->devInfo[i].SerialNumber, FT_LIST_BY_INDEX | FT_OPEN_BY_SERIAL_NUMBER);
-                }
-                if(strlen(listBaton->devInfo[i].Description) == 0)
-                {
-                    FT_ListDevices((PVOID)i, listBaton->devInfo[i].Description, FT_LIST_BY_INDEX | FT_OPEN_BY_DESCRIPTION);
-                }
-                if(listBaton->devInfo[i].LocId == 0)
-                {
-                    FT_ListDevices((PVOID)i, &listBaton->devInfo[i].LocId, FT_LIST_BY_INDEX | FT_OPEN_BY_LOCATION);
-                }
+                uv_mutex_lock(&libraryMutex);
+                FT_ListDevices((PVOID)i, listBaton->devInfo[i].SerialNumber, FT_LIST_BY_INDEX | FT_OPEN_BY_SERIAL_NUMBER);
+                FT_ListDevices((PVOID)i, listBaton->devInfo[i].Description, FT_LIST_BY_INDEX | FT_OPEN_BY_DESCRIPTION);
+                FT_ListDevices((PVOID)i, &listBaton->devInfo[i].LocId, FT_LIST_BY_INDEX | FT_OPEN_BY_LOCATION);
+                uv_mutex_unlock(&libraryMutex);
             }
         }
     }

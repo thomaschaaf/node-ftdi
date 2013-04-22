@@ -66,8 +66,6 @@ class FtdiDevice : public ObjectWrap
         static Handle<Value> ThrowTypeError(std::string message);
         static Handle<Value> ThrowLastError(std::string message);
 
-        static Handle<Value> RegisterDataCallback(const Arguments& args);
-
     private:
         static void ReadDataAsync(uv_work_t* req);
         static void ReadCallback(uv_work_t* req);
@@ -101,7 +99,6 @@ class FtdiDevice : public ObjectWrap
         HANDLE dataEventHandle;
 #endif
         uv_mutex_t closeMutex;
-        bool closed;
 };
 
 }

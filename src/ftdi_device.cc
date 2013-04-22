@@ -34,6 +34,11 @@ using namespace ftdi_device;
 #define NANOSECS_PER_MILISECOND     1000000
 #define MILISECS_PER_SECOND         1000
 
+#define JS_CLASS_NAME               "FtdiDevice"
+#define JS_WRITE_FUNCTION           "write"
+#define JS_OPEN_FUNCTION            "open"
+#define JS_CLOSE_FUNCTION           "close"
+
 /**********************************
  * Local typedefs
  **********************************/
@@ -109,15 +114,15 @@ void FtdiDevice::Initialize(v8::Handle<v8::Object> target)
 {
     // Prepare constructor template
     Local<FunctionTemplate> tpl = FunctionTemplate::New(New);
-    tpl->SetClassName(String::NewSymbol("FtdiDevice"));
+    tpl->SetClassName(String::NewSymbol(JS_CLASS_NAME));
     tpl->InstanceTemplate()->SetInternalFieldCount(1);
     // Prototype
-    tpl->PrototypeTemplate()->Set(String::NewSymbol("write"), FunctionTemplate::New(Write)->GetFunction());
-    tpl->PrototypeTemplate()->Set(String::NewSymbol("open"), FunctionTemplate::New(Open)->GetFunction());
-    tpl->PrototypeTemplate()->Set(String::NewSymbol("close"), FunctionTemplate::New(Close)->GetFunction());
+    tpl->PrototypeTemplate()->Set(String::NewSymbol(JS_WRITE_FUNCTION), FunctionTemplate::New(Write)->GetFunction());
+    tpl->PrototypeTemplate()->Set(String::NewSymbol(JS_OPEN_FUNCTION), FunctionTemplate::New(Open)->GetFunction());
+    tpl->PrototypeTemplate()->Set(String::NewSymbol(JS_CLOSE_FUNCTION), FunctionTemplate::New(Close)->GetFunction());
 
     Persistent<Function> constructor = Persistent<Function>::New(tpl->GetFunction());
-    target->Set(String::NewSymbol("FtdiDevice"), constructor);
+    target->Set(String::NewSymbol(JS_CLASS_NAME), constructor);
 }
 
 Handle<Value> FtdiDevice::New(const Arguments& args) 

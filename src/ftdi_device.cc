@@ -123,12 +123,12 @@ void FtdiDevice::Initialize(v8::Handle<v8::Object> target)
 Handle<Value> FtdiDevice::New(const Arguments& args) 
 {
     HandleScope scope;
-    Local<String> locationId = String::New(DEVICE_LOCATION_ID_TAG);
-    Local<String> serial = String::New(DEVICE_SERIAL_NR_TAG);
-    Local<String> index = String::New(DEVICE_INDEX_TAG);
-    Local<String> description = String::New(DEVICE_DESCRIPTION_TAG);
-    Local<String> vid = String::New(DEVICE_VENDOR_ID_TAG);
-    Local<String> pid = String::New(DEVICE_PRODUCT_ID_TAG);
+    Local<String> locationId    = String::New(DEVICE_LOCATION_ID_TAG);
+    Local<String> serial        = String::New(DEVICE_SERIAL_NR_TAG);
+    Local<String> index         = String::New(DEVICE_INDEX_TAG);
+    Local<String> description   = String::New(DEVICE_DESCRIPTION_TAG);
+    Local<String> vid           = String::New(DEVICE_VENDOR_ID_TAG);
+    Local<String> pid           = String::New(DEVICE_PRODUCT_ID_TAG);
 
     FtdiDevice* object = new FtdiDevice();
 
@@ -201,6 +201,11 @@ Handle<Value> FtdiDevice::Open(const Arguments& args)
 
     // Get Device Object
     FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
+    if(device == NULL)
+    {
+        return FtdiDevice::ThrowLastError("No FtdiDevice object found in Java Script object");
+    }
+
     device->deviceState = DeviceState_Open;
 
     if (args.Length() != 3) 
@@ -518,6 +523,11 @@ Handle<Value> FtdiDevice::Write(const Arguments& args)
 
     // Obtain Device Object
     FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
+    if(device == NULL)
+    {
+        return FtdiDevice::ThrowLastError("No FtdiDevice object found in Java Script object");
+    }
+
     WriteBaton_t* baton = new WriteBaton_t();
 
     Local<Value> writeCallback;
@@ -588,6 +598,10 @@ Handle<Value> FtdiDevice::Close(const Arguments& args)
 
     // Obtain Device Object
     FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
+    if(device == NULL)
+    {
+        return FtdiDevice::ThrowLastError("No FtdiDevice object found in Java Script object");
+    }
 
     // Check the device state
     if(device->deviceState != DeviceState_Open)

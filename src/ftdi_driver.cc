@@ -86,7 +86,7 @@ void FindAllAsync(uv_work_t* req)
         if (numDevs > 0) 
         {
             // allocate storage for list based on numDevs
-            listBaton->devInfo =  (FT_DEVICE_LIST_INFO_NODE*) malloc(sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs); 
+            listBaton->devInfo =  new FT_DEVICE_LIST_INFO_NODE[numDevs]; 
             memset(listBaton->devInfo, 0, sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs);
             
             // get the device information list
@@ -169,8 +169,9 @@ void FindAllFinished(uv_work_t* req)
 
     if(listBaton->devInfo != NULL)
     {
-        free(listBaton->devInfo);
+        delete listBaton->devInfo;
     }
+    delete listBaton;
 }
 
 Handle<Value> FindAll(const Arguments& args) 

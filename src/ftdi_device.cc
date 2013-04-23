@@ -211,8 +211,6 @@ Handle<Value> FtdiDevice::Open(const Arguments& args)
         return FtdiDevice::ThrowLastError("No FtdiDevice object found in Java Script object");
     }
 
-    device->deviceState = DeviceState_Open;
-
     if (args.Length() != 3) 
     {
         return FtdiDevice::ThrowTypeError("open() expects three arguments");
@@ -237,18 +235,31 @@ Handle<Value> FtdiDevice::Open(const Arguments& args)
     }
     Local<Value> openCallback = args[2];
 
-    OpenBaton_t* baton = new OpenBaton_t();
 
-    // Extract the connection parameters
-    device->ExtractDeviceSettings(args[0]->ToObject());
-    
-    baton->readCallback =  Persistent<Value>::New(readCallback);
-    baton->callback =  Persistent<Value>::New(openCallback);
-    baton->device = device;
+    // Check if device is not already open or opening
+    if(device->deviceState == DeviceState_Open)
+    {
+        Handle<Value> argv[1];
+        argv[0] = String::New(FT_STATUS_CUSTOM_ALREADY_OPEN);
+        Function::Cast(*args[2])->Call(Context::GetCurrent()->Global(), 1, argv);
+    }
+    else
+    {
+        device->deviceState = DeviceState_Open;
 
-    uv_work_t* req = new uv_work_t();
-    req->data = baton;
-    uv_queue_work(uv_default_loop(), req, OpenAsync, (uv_after_work_cb)FtdiDevice::OpenFinished);
+        OpenBaton_t* baton = new OpenBaton_t();
+
+        // Extract the connection parameters
+        device->ExtractDeviceSettings(args[0]->ToObject());
+        
+        baton->readCallback =  Persistent<Value>::New(readCallback);
+        baton->callback =  Persistent<Value>::New(openCallback);
+        baton->device = device;
+
+        uv_work_t* req = new uv_work_t();
+        req->data = baton;
+        uv_queue_work(uv_default_loop(), req, OpenAsync, (uv_after_work_cb)FtdiDevice::OpenFinished);
+    }
 
     return args.This();
 }
@@ -263,14 +274,14 @@ void FtdiDevice::OpenAsync(uv_work_t* req)
     ftStatus = device->OpenDevice();
     if (ftStatus != FT_OK) 
     {
-        fprintf(stderr, "Can't open ftdi device: %d\n", ftStatus);
+        fprintf(stderr, "Can't open ftdi device: %s\n", error_strings[ftStatus]);
     }
     else
     {
         ftStatus = device->SetDeviceSettings();
         if (ftStatus != FT_OK) 
         {
-            fprintf(stderr, "Can't Set DeviceSettings: %d\n", ftStatus);
+            fprintf(stderr, "Can't Set DeviceSettings: %s\n", error_strings[ftStatus]);
         }
     }
 
@@ -422,7 +433,7 @@ void FtdiDevice::ReadDataAsync(uv_work_t* req)
 
         if(ftStatus != FT_OK)
         {
-            fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+            fprintf(stderr, "Can't read from ftdi device: %s\n", error_strings[ftStatus]);
             baton->status = ftStatus;
             return;
         }
@@ -437,7 +448,7 @@ void FtdiDevice::ReadDataAsync(uv_work_t* req)
             uv_mutex_unlock(&libraryMutex);  
             if (ftStatus != FT_OK) 
             {
-                fprintf(stderr, "Can't read from ftdi device: %d\n", ftStatus);
+                fprintf(stderr, "Can't read from ftdi device: %s\n", error_strings[ftStatus]);
             }
             
             baton->status = ftStatus;
@@ -601,6 +612,7 @@ Handle<Value> FtdiDevice::Close(const Arguments& args)
 {
     HandleScope scope;
 
+    printf("Close....\n");
     // Obtain Device Object
     FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
     if(device == NULL)
@@ -624,6 +636,9 @@ Handle<Value> FtdiDevice::Close(const Arguments& args)
         CloseBaton_t* baton = new CloseBaton_t();
         baton->device = device;
 
+        // Set Device State
+        device->deviceState = DeviceState_Closing;
+
          // callback
         if(args[0]->IsFunction()) 
         {
@@ -644,6 +659,7 @@ void FtdiDevice::CloseAsync(uv_work_t* req)
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
     FtdiDevice* device = baton->device;
 
+    Sleep(2);
     // Send Event for Read Loop
     device->SignalCloseEvent();
 
@@ -696,7 +712,7 @@ FT_STATUS FtdiDevice::SetDeviceSettings()
     uv_mutex_unlock(&libraryMutex);  
     if (ftStatus != FT_OK) 
     {
-        fprintf(stderr, "Can't Set FT_SetDataCharacteristics: %d\n", ftStatus);
+        fprintf(stderr, "Can't Set FT_SetDataCharacteristics: %s\n", error_strings[ftStatus]);
         return ftStatus;
     }
 
@@ -705,7 +721,7 @@ FT_STATUS FtdiDevice::SetDeviceSettings()
     uv_mutex_unlock(&libraryMutex);  
     if (ftStatus != FT_OK) 
     {
-        fprintf(stderr, "Can't setBaudRate: %d\n", ftStatus);
+        fprintf(stderr, "Can't setBaudRate: %s\n", error_strings[ftStatus]);
         return ftStatus;
     }
 
@@ -860,7 +876,6 @@ void FtdiDevice::WaitForReadOrCloseEvent()
 void FtdiDevice::SignalCloseEvent()
 {
     pthread_mutex_lock(&dataEventHandle.eMutex);
-    deviceState = DeviceState_Closing;
     pthread_cond_signal(&dataEventHandle.eCondVar);
     pthread_mutex_unlock(&dataEventHandle.eMutex);
 }
@@ -884,7 +899,6 @@ void FtdiDevice::WaitForReadOrCloseEvent()
 
 void FtdiDevice::SignalCloseEvent()
 {
-    deviceState = DeviceState_Closing;
     SetEvent(dataEventHandle);
 }
 #endif

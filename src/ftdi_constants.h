@@ -37,6 +37,7 @@
 #define FT_STATUS_17				"FT_NOT_SUPPORTED"
 #define FT_STATUS_18				"FT_OTHER_ERROR"
 
+#define FT_STATUS_CUSTOM_ALREADY_OPEN				"Device Already open"
 #define FT_STATUS_CUSTOM_ALREADY_CLOSING			"Device Already closing"
 
 // Lock for Library Calls

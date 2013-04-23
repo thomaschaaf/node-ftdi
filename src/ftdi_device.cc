@@ -659,7 +659,6 @@ void FtdiDevice::CloseAsync(uv_work_t* req)
     CloseBaton_t* baton = static_cast<CloseBaton_t*>(req->data);
     FtdiDevice* device = baton->device;
 
-    Sleep(2);
     // Send Event for Read Loop
     device->SignalCloseEvent();
 

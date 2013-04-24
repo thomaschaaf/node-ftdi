@@ -224,14 +224,14 @@ Handle<Value> FtdiDevice::Open(const Arguments& args)
     // options
     if(!args[1]->IsFunction()) 
     {
-        return FtdiDevice::ThrowTypeError("open() expects a function as second argument");
+        return FtdiDevice::ThrowTypeError("open() expects a function (openFisnished) as second argument");
     }
     Local<Value> readCallback = args[1];
 
         // options
     if(!args[2]->IsFunction()) 
     {
-        return FtdiDevice::ThrowTypeError("open() expects a function as third argument");
+        return FtdiDevice::ThrowTypeError("open() expects a function (readFinsihed) as third argument");
     }
     Local<Value> openCallback = args[2];
 
@@ -299,21 +299,29 @@ void FtdiDevice::OpenFinished(uv_work_t* req)
      */ 
     if(baton->status == FT_OK)
     {
-        ReadBaton_t* readBaton = new ReadBaton_t();
-        device->PrepareAsyncRead();
-        readBaton->device = device;
-        readBaton->callback = baton->readCallback;
+        baton->status = device->PrepareAsyncRead();
+        if(baton->status == FT_OK)
+        {
+            ReadBaton_t* readBaton = new ReadBaton_t();
+            readBaton->device = device;
+            readBaton->callback = baton->readCallback;
 
-        // Lock the Close mutex (it is needed to signal when async read has stoped reading)
-        uv_mutex_lock(&device->closeMutex);
+            // Lock the Close mutex (it is needed to signal when async read has stoped reading)
+            uv_mutex_lock(&device->closeMutex);
 
-        uv_work_t* req = new uv_work_t();
-        req->data = readBaton;
-        uv_queue_work(uv_default_loop(), req, FtdiDevice::ReadDataAsync, (uv_after_work_cb)FtdiDevice::ReadCallback);
+            uv_work_t* req = new uv_work_t();
+            req->data = readBaton;
+            uv_queue_work(uv_default_loop(), req, FtdiDevice::ReadDataAsync, (uv_after_work_cb)FtdiDevice::ReadCallback);
+        }
+        // In case read thread could not be started, dispose the callback
+        else
+        {
+            baton->readCallback.Dispose();
+        }
     }
 
     // Check for callback function
-    if(baton->callback->IsFunction())
+    if(!baton->callback.IsEmpty() && baton->callback->IsFunction())
     {
         Handle<Value> argv[1];
         if(baton->status != FT_OK)
@@ -326,17 +334,17 @@ void FtdiDevice::OpenFinished(uv_work_t* req)
         }
 
         Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+        baton->callback.Dispose();
     }
 
     delete req;
-    baton->callback.Dispose();
     delete baton;
 }
 
 
 FT_STATUS FtdiDevice::OpenDevice()
 {
-    FT_STATUS status;
+    FT_STATUS status = FT_OK;
 
     // For open by Index case
     if(connectParams.connectType == ConnectType_ByIndex)
@@ -345,9 +353,12 @@ FT_STATUS FtdiDevice::OpenDevice()
 #ifndef WIN32
         // In case of Linux / Mac we have to set the VID PID of the
         // device we want to connect to
-        FT_SetVIDPID(connectParams.vid, connectParams.pid);
+        status = FT_SetVIDPID(connectParams.vid, connectParams.pid);
 #endif
-        status = FT_Open(connectParams.connectId, &ftHandle);
+        if(status == FT_OK)
+        {
+            status = FT_Open(connectParams.connectId, &ftHandle);
+        }
         uv_mutex_unlock(&libraryMutex);  
         return status;
     }
@@ -396,10 +407,12 @@ FT_STATUS FtdiDevice::OpenDevice()
 #ifndef WIN32
         // In case of Linux / Mac we have to set the VID PID of the
         // device we want to connect to
-        FT_SetVIDPID(connectParams.vid, connectParams.pid);
+        status = FT_SetVIDPID(connectParams.vid, connectParams.pid);
 #endif
-
-        status = FT_OpenEx(arg, flags, &ftHandle);
+        if(status == FT_OK)
+        {
+            status = FT_OpenEx(arg, flags, &ftHandle);
+        }
         uv_mutex_unlock(&libraryMutex); 
         uv_mutex_unlock(&vidPidMutex);  
         return status;
@@ -597,10 +610,10 @@ void FtdiDevice::WriteFinished(uv_work_t* req)
         }
 
         Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+        baton->callback.Dispose();
     }
 
     delete baton->data;
-    baton->callback.Dispose();
     delete baton;
     delete req;
 }
@@ -612,7 +625,6 @@ Handle<Value> FtdiDevice::Close(const Arguments& args)
 {
     HandleScope scope;
 
-    printf("Close....\n");
     // Obtain Device Object
     FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
     if(device == NULL)
@@ -693,9 +705,9 @@ void FtdiDevice::CloseFinished(uv_work_t* req)
         }
 
         Function::Cast(*baton->callback)->Call(Context::GetCurrent()->Global(), 1, argv);
+        baton->callback.Dispose();
     }
     delete req;
-    baton->callback.Dispose();
     delete baton;
 }
 

@@ -151,13 +151,15 @@ void FindAllFinished(uv_work_t* req)
             }
         }
 
+        argv[0] = Undefined();
         argv[1] = array;
     }
+    // something went wrong, return the error string
     else
     {
+        argv[0] = String::New(GetStatusString(listBaton->status));
         argv[1] = Undefined();
     }
-    argv[0] = Number::New(listBaton->status);
 
     Function::Cast(*listBaton->callback)->Call(Context::GetCurrent()->Global(), 2, argv);
 
@@ -165,6 +167,7 @@ void FindAllFinished(uv_work_t* req)
     {
         delete listBaton->devInfo;
     }
+    listBaton->callback.Dispose();
     delete listBaton;
 }
 

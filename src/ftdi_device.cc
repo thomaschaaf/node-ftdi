@@ -171,11 +171,11 @@ Handle<Value> FtdiDevice::New(const Arguments& args)
             object->connectParams.connectType = ConnectType_ByIndex;
         }
         object->connectParams.vid = 0;
-        object->connectParams.pid = 0;
         if(obj->Has(vid)) 
         {
             object->connectParams.vid = obj->Get(vid)->Int32Value();
         }
+        object->connectParams.pid = 0;
         if(obj->Has(pid)) 
         {
             object->connectParams.pid = obj->Get(pid)->Int32Value();
@@ -316,6 +316,7 @@ void FtdiDevice::OpenFinished(uv_work_t* req)
         // In case read thread could not be started, dispose the callback
         else
         {
+            fprintf(stderr, "Could not Initialise event notification: %s\n", error_strings[baton->status]);
             baton->readCallback.Dispose();
         }
     }
@@ -446,7 +447,7 @@ void FtdiDevice::ReadDataAsync(uv_work_t* req)
 
         if(ftStatus != FT_OK)
         {
-            fprintf(stderr, "Can't read from ftdi device: %s\n", error_strings[ftStatus]);
+            fprintf(stderr, "Can't get queue status from ftdi device: %s\n", error_strings[ftStatus]);
             baton->status = ftStatus;
             return;
         }
@@ -814,7 +815,7 @@ UCHAR GetParity(const char* string)
 
 /**
  *  Generates a new C String. It allocates memory for the new
- *  string be sure to free the memory as soon as you dont need
+ *  string. Be sure to free the memory as soon as you dont need
  *  it anymore.
  */
 void ToCString(Local<String> val, char ** ptr) 
@@ -914,7 +915,8 @@ void FtdiDevice::SignalCloseEvent()
 }
 #endif
 
-extern "C" {
+extern "C"
+{
   void init (v8::Handle<v8::Object> target) 
   {
     InitializeList(target);

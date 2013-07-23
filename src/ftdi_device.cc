@@ -184,13 +184,11 @@ class ReadWorker : public NanAsyncWorker {
       Local<Value> argv[2];
 
       Local<Object> slowBuffer = NanNewBufferHandle((char*)baton->data, baton->length);
-      // memcpy(Buffer::Data(slowBuffer), baton->data, baton->length);
-      // Local<Object> globalObj = Context::GetCurrent()->Global();
-
-      // Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
-      // Handle<Value> constructorArgs[3] = { slowBuffer->handle_, Integer::New(baton->length), Integer::New(0) };
-      // Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
-      argv[1] = slowBuffer;
+      Local<Object> globalObj = Context::GetCurrent()->Global();
+      Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
+      Handle<Value> constructorArgs[3] = { slowBuffer, Integer::New(baton->length), Integer::New(0) };
+      Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
+      argv[1] = actualBuffer;
 
       if(status != FT_OK)
       {

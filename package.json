@@ -1,11 +1,12 @@
 {
   "name": "ftdi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "FTDI bindings for Node.js",
   "main": "index.js",
   "dependencies": {
     "bindings": "1.1.0"
   },
+  "gypfile": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "preinstall": "node-gyp rebuild"

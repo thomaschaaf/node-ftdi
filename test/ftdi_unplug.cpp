@@ -120,7 +120,7 @@ FT_STATUS Find(int vid, int pid)
 	      printf("Open: %d\n", devInfo[i].Flags & 0x1);
       }
 
-      delete devInfo;
+      delete[] devInfo;
   }
   return status;
   
@@ -185,7 +185,7 @@ void* ReadData(void* ptr)
         	FT_Read(device->handle, data, RxBytes, &BytesReceived);
 			
 			fprintf(stderr, "%d Bytes Read\n", BytesReceived);
-			delete data;
+			delete[] data;
         }
 	}
 

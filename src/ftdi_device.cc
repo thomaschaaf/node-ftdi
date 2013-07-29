@@ -769,7 +769,7 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
     char* str;
     ToCString(options->Get(parity)->ToString(), &str);
     deviceParams.parity = GetParity(str);
-    delete str;
+    delete[] str;
   }
 }
 

@@ -96,6 +96,10 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
 
 # Release Notes
 
+## v1.0.2
+
+- fix allocation/deallocation mismatch
+
 ## v1.0.1
 
 - ready for node >= 0.11.4

@@ -1,6 +1,6 @@
 {
   "name": "ftdi",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "FTDI bindings for Node.js",
   "main": "index.js",
   "dependencies": {

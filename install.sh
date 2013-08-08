@@ -66,6 +66,7 @@ then
 elif [ "$ostype" ==  "mac" ]
 then
    hdiutil attach $filename
+   mkdir -p /usr/local/include
    cp /Volumes/release/D2XX/bin/10.5-10.7/libftd2xx.$LIB_VERSION.dylib /usr/local/lib/libftd2xx.$LIB_VERSION.dylib
    ln -sf /usr/local/lib/libftd2xx.$LIB_VERSION.dylib /usr/local/lib/libftd2xx.dylib
    cp /Volumes/release/D2XX/Samples/ftd2xx.h /usr/local/include/ftd2xx.h

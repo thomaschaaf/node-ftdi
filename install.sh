@@ -5,21 +5,22 @@ FTDI_MAC_LINK='http://www.ftdichip.com/Drivers/D2XX/MacOSX/D2XX1.2.2.dmg'
 LIB_VERSION_LINUX='1.1.12'
 LIB_VERSION_MAC='1.2.2'
 
-echo Detected Platform:
+echo Detected OS:
 
 ostype='unknown'
 platform='unknown'
 link=''
 getcommand=''
-unamestr=`uname -s`
+uname_system=`uname -s`
+uname_machine=`uname -m`
 
-if [ "$unamestr" == 'Linux' ]
+if [ "$uname_system" == 'Linux' ]
 then
    LIB_VERSION=$LIB_VERSION_LINUX
    ostype='linux'
    link=$FTDI_LINUX_LINK
    getcommand='wget'
-elif [ "$unamestr" == 'Darwin' ]
+elif [ "$uname_system" == 'Darwin' ]
 then
    LIB_VERSION=$LIB_VERSION_MAC
    ostype='mac'
@@ -28,14 +29,15 @@ then
    getcommand="curl -o $filename"
 fi
 
-if [ $(uname -m) == 'x86_64' ]
+if [ "$uname_machine" == 'x86_64' ]
 then
    platform='64bit'
+elif [ "$uname_machine" == 'armv6l' ]
+then
+   platform='RPi'
 else
    platform='32bit'
 fi
-
-
 
 echo $ostype \($platform\)
 echo Download FTDI Library
@@ -45,21 +47,26 @@ filename=`basename $link`
 if [ "$ostype" ==  "linux" ]
 then
    mkdir -p tmp/
-   tar xfvz $filename -C tmp/
-   if [ "$platform" ==  "64bit" ]
+   echo extract lib
+   tar xfz $filename -C tmp/
+   if [ "$platform" == '64bit' ]
    then
    	buildPath="tmp/release/build/x86_64/"
+   elif [ "$platform" == 'RPi' ]
+   then
+      	buildPath="tmp/release/build/arm926/"	
    else
-      buildPath="tmp/release/build/i386/"
+      	buildPath="tmp/release/build/i386/"
    fi
    libPath=$buildPath
    libPath+=libftd*
-   cp $libPath /usr/local/lib
+
+   cp -v $libPath /usr/local/lib
    mkdir /usr/local/include/libftd2xx
-   cp tmp/release/ftd2xx.h /usr/local/include/libftd2xx
-   cp tmp/release/WinTypes.h /usr/local/include/libftd2xx
+   cp -v tmp/release/ftd2xx.h /usr/local/include/libftd2xx
+   cp -v tmp/release/WinTypes.h /usr/local/include/libftd2xx
    chmod 0755 /usr/local/lib/libftd2xx.so.$LIB_VERSION
-   ln -sf /usr/local/lib/libftd2xx.so.$LIB_VERSION /usr/local/lib/libftd2xx.so
+   ln -sfv /usr/local/lib/libftd2xx.so.$LIB_VERSION /usr/local/lib/libftd2xx.so
    rm -f $filename
    rm -rf tmp
    ldconfig

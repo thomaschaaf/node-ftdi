@@ -77,7 +77,9 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
     baudrate: 115200,
     databits: 8,
     stopbits: 1,
-    parity: 'none'
+    parity: 'none',
+    // bitmode: 'cbus', // for bit bang
+    // bitmask: 0xff    // for bit bang
   },
   function(err) {
 

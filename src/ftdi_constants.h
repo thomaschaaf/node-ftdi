@@ -13,6 +13,9 @@
 #define CONNECTION_STOPBITS_TAG		"stopbits"
 #define CONNECTION_PARITY_TAG		"parity"
 
+#define CONNECTION_BITMODE			"bitmode"
+#define CONNECTION_BITMASK			"bitmask"
+
 #define CONNECTION_PARITY_NONE		"none"
 #define CONNECTION_PARITY_ODD		"odd"
 #define CONNECTION_PARITY_EVEN		"even"

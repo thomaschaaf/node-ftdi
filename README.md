@@ -12,6 +12,8 @@
   88     88  88ee8 88 
 </pre>
 
+[![npm](https://img.shields.io/npm/v/ftdi.svg)](https://npmjs.org/package/ftdi)
+
 # Prerequisites:
 
 **Make sure you installed the ftdi driver: [ftdi](http://www.ftdichip.com/Drivers/D2XX.htm)**

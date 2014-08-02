@@ -129,6 +129,10 @@ var bitmodes = {
 
 # Release Notes
 
+## v1.1.0
+
+- added bit bang support
+
 ## v1.0.3
 
 - revert "ready for node >= 0.11.4"
@@ -148,7 +152,7 @@ var bitmodes = {
 
 # License
 
-Copyright (c) 2013 Kaba AG
+Copyright (c) 2014 Kaba AG
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

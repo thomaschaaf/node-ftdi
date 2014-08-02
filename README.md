@@ -96,6 +96,23 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
 });
 ```
 
+### Bit Bang infos
+
+bitmode can be directly a number like 0x20 or a string like 'cbus'
+mapping:
+```nodejs
+var bitmodes = {
+  'reset' : 0x00,
+  'async' : 0x01,
+  'mpsse' : 0x02,
+  'sync'  : 0x04,
+  'mcu'   : 0x0B,
+  'fast'  : 0x10,
+  'cbus'  : 0x20,
+  'single': 0x40
+};
+```
+
 # Release Notes
 
 ## v1.0.3

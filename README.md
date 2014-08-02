@@ -98,8 +98,11 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
 
 ### Bit Bang infos
 bitmask: Is always a number (one byte).
+
 bitmode: Can be directly a number (one byte) like 0x20 or a string like 'cbus'.
+
 mapping:
+
 ```nodejs
 var bitmodes = {
   'reset' : 0x00,

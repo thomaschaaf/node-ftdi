@@ -40,6 +40,11 @@ typedef struct
     UCHAR wordLength;
     UCHAR stopBits;
     UCHAR parity;
+
+    UCHAR bitMode;
+    UCHAR bitMask;
+
+    bool hasBitSettings;
 } DeviceParams_t;
 
 typedef enum

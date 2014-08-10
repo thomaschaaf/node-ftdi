@@ -12,6 +12,8 @@
   88     88  88ee8 88 
 </pre>
 
+[![npm](https://img.shields.io/npm/v/ftdi.svg)](https://npmjs.org/package/ftdi)
+
 # Prerequisites:
 
 **Make sure you installed the ftdi driver: [ftdi](http://www.ftdichip.com/Drivers/D2XX.htm)**
@@ -77,7 +79,9 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
     baudrate: 115200,
     databits: 8,
     stopbits: 1,
-    parity: 'none'
+    parity: 'none',
+    // bitmode: 'cbus', // for bit bang
+    // bitmask: 0xff    // for bit bang
   },
   function(err) {
 
@@ -94,7 +98,42 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
 });
 ```
 
+### Bit Bang infos
+bitmask: Is always a number (one byte).
+
+bitmode: Can be directly a number (one byte) like 0x20 or a string like 'cbus'.
+
+mapping:
+
+```nodejs
+var bitmodes = {
+  'reset' : 0x00,
+  'async' : 0x01,
+  'mpsse' : 0x02,
+  'sync'  : 0x04,
+  'mcu'   : 0x0B,
+  'fast'  : 0x10,
+  'cbus'  : 0x20,
+  'single': 0x40
+};
+
+/**
+ * 0x00 = Reset
+ * 0x01 = Asynchronous Bit Bang
+ * 0x02 = MPSSE (FT2232, FT2232H, FT4232H and FT232H devices only)
+ * 0x04 = Synchronous Bit Bang (FT232R, FT245R, FT2232, FT2232H, FT4232H and FT232H devices only)
+ * 0x08 = MCU Host Bus Emulation Mode (FT2232, FT2232H, FT4232H and FT232H devices only)
+ * 0x10 = Fast Opto-Isolated Serial Mode (FT2232, FT2232H, FT4232H and FT232H devices only)
+ * 0x20 = CBUS Bit Bang Mode (FT232R and FT232H devices only) 
+ * 0x40 = Single Channel Synchronous 245 FIFO Mode (FT2232H and FT232H devices only)
+ */
+```
+
 # Release Notes
+
+## v1.1.0
+
+- added bit bang support
 
 ## v1.0.3
 
@@ -115,7 +154,7 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
 
 # License
 
-Copyright (c) 2013 Kaba AG
+Copyright (c) 2014 Kaba AG
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

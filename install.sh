@@ -1,6 +1,7 @@
 #!/bin/bash
 
 FTDI_LINUX_LINK='http://www.ftdichip.com/Drivers/D2XX/Linux/libftd2xx1.1.12.tar.gz'
+FTDI_LINUX_RPI='https://github.com/sim-san/node-ftdi/raw/master/libftd2xx1.1.12.RPi_Fix.tar.gz'
 FTDI_MAC_LINK='http://www.ftdichip.com/Drivers/D2XX/MacOSX/D2XX1.2.2.dmg'
 LIB_VERSION_LINUX='1.1.12'
 LIB_VERSION_MAC='1.2.2'
@@ -35,6 +36,7 @@ then
 elif [ "$uname_machine" == 'armv6l' ]
 then
    platform='RPi'
+   link=$FTDI_LINUX_RPI
 else
    platform='32bit'
 fi

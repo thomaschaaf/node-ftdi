@@ -10,13 +10,9 @@ device = null
 turnBy = (miliseconds, callback) =>
   array = new Array(ON, ON, ON, ON).reverse()
   device.write [parseInt(array.join(""), 2)], (err) =>
-    console.log err
-    console.log "start"
     setTimeout =>
       array = new Array(OFF, OFF, OFF, OFF).reverse()
       device.write [parseInt(array.join(""), 2)], (err) =>
-        console.log err
-        console.log "stop"
         callback()
     , miliseconds
 
@@ -36,22 +32,22 @@ async.series [
       bitmask: 0xf
 
 
-    device.on "error", (data) =>
-      console.log "err", data
+    #device.on "error", (data) =>
+    #  console.log "err", data
+#
+    #device.on "data", (data) =>
+    #  console.log "data", data
+#
+    #device.on "open", () =>
+    #  console.log "open"
 
-    device.on "data", (data) =>
-      console.log "data", data
 
-    device.on "open", () =>
-      console.log "open"
-
-
-    console.log device
+    #console.log device
     device.open deviceOptions, (err) =>
 
-      console.log(err)
+      #console.log(err)
       turnBy 4000, () =>
-        console.log "heya"
+        console.log "finished turning"
 
-      device.on "data", (data) =>
-        console.log "data", data.toString("utf8")
+      #device.on "data", (data) =>
+      #  console.log "data", data.toString("utf8")

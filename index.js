@@ -54,7 +54,6 @@ util.inherits(FtdiDevice, EventEmitter);
 FtdiDevice.prototype.open = function(settings, callback) {
   var self = this;
 
-  console.log(typeof(settings.bitmode));
   if (typeof(settings.bitmode) === 'string') {
     settings.bitmode = bitmodes[settings.bitmode];
   }

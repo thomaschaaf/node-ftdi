@@ -525,7 +525,6 @@ class WriteWorker : public NanAsyncWorker {
   // here, so everything we need for input and output
   // should go on `this`.
   void Execute () {
-    cout << "asdfasdf";
     status = FtdiDevice::WriteAsync(device, baton);
   }
 
@@ -534,12 +533,10 @@ class WriteWorker : public NanAsyncWorker {
   // so it is safe to use V8 again
   void HandleOKCallback () {
     NanScope();
-    cout << "HandleOKCallback";
 
     if(callback != NULL)
     {
       Local<Value> argv[1];
-      cout << status;
       if(status != FT_OK)
       {
         argv[0] = NanNew<String>(GetStatusString(status));

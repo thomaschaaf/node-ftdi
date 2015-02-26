@@ -132,7 +132,6 @@ class FindAllWorker : public NanAsyncWorker {
   // here, so everything we need for input and output
   // should go on `this`.
   void Execute () {
-    cout << "findallworker";
     listBaton = FindAllAsync(vid, pid);
   }
 
@@ -202,8 +201,6 @@ class FindAllWorker : public NanAsyncWorker {
 
 NAN_METHOD(FindAll) {
   NanScope();
-
-  cout << "findallmethod";
 
   int vid = 0;
   int pid = 0;

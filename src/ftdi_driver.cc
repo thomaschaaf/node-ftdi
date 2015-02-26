@@ -1,15 +1,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <iostream>
 
 #include "ftdi_driver.h"
 #include "ftdi_constants.h"
 
-using namespace std;
 using namespace v8;
 using namespace node;
-
 
 /**********************************
  * Local typedefs
@@ -52,7 +49,7 @@ uv_mutex_t vidPidMutex;
 bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVid, int filterPid)
 {
   int devVid = (devInfo->ID >> 16) & (0xFFFF);
-  int devPid = (devInfo->ID) & (0xFFFF);
+  int devPid = (devInfo->ID) & (0xFFFF); 
 
   if(filterVid == 0 && filterPid == 0)
   {
@@ -69,7 +66,7 @@ bool DeviceMatchesFilterCriteria(FT_DEVICE_LIST_INFO_NODE *devInfo, int filterVi
   return true;
 }
 
-DeviceListBaton* FindAllAsync(int vid, int pid)
+DeviceListBaton* FindAllAsync(int vid, int pid) 
 {
   DeviceListBaton* listBaton = new DeviceListBaton();
   FT_STATUS ftStatus;
@@ -81,26 +78,26 @@ DeviceListBaton* FindAllAsync(int vid, int pid)
 #ifndef WIN32
   if(vid != 0 && pid != 0)
   {
-    uv_mutex_lock(&libraryMutex);
+    uv_mutex_lock(&libraryMutex);  
     ftStatus = FT_SetVIDPID(vid, pid);
-    uv_mutex_unlock(&libraryMutex);
+    uv_mutex_unlock(&libraryMutex);  
   }
 #endif
   // create the device information list
-  uv_mutex_lock(&libraryMutex);
+  uv_mutex_lock(&libraryMutex);  
   ftStatus = FT_CreateDeviceInfoList(&numDevs);
   uv_mutex_unlock(&libraryMutex);
-  if (ftStatus == FT_OK)
+  if (ftStatus == FT_OK) 
   {
-    if (numDevs > 0)
+    if (numDevs > 0) 
     {
       // allocate storage for list based on numDevs
-      listBaton->devInfo =  new FT_DEVICE_LIST_INFO_NODE[numDevs];
+      listBaton->devInfo =  new FT_DEVICE_LIST_INFO_NODE[numDevs]; 
       memset(listBaton->devInfo, 0, sizeof(FT_DEVICE_LIST_INFO_NODE) * numDevs);
-
+      
       // get the device information list
       uv_mutex_lock(&libraryMutex);
-      ftStatus = FT_GetDeviceInfoList(listBaton->devInfo, &numDevs);
+      ftStatus = FT_GetDeviceInfoList(listBaton->devInfo, &numDevs); 
       uv_mutex_unlock(&libraryMutex);
 
       // fallback for wrong info in several cases... when connected multiple devices and unplug one...
@@ -114,9 +111,9 @@ DeviceListBaton* FindAllAsync(int vid, int pid)
       }
     }
   }
-  uv_mutex_unlock(&vidPidMutex);
+  uv_mutex_unlock(&vidPidMutex);  
 
-  listBaton->listLength = numDevs;
+  listBaton->listLength = numDevs;              
   listBaton->status = ftStatus;
   return listBaton;
 }
@@ -132,7 +129,6 @@ class FindAllWorker : public NanAsyncWorker {
   // here, so everything we need for input and output
   // should go on `this`.
   void Execute () {
-    cout << "findallworker";
     listBaton = FindAllAsync(vid, pid);
   }
 
@@ -145,9 +141,9 @@ class FindAllWorker : public NanAsyncWorker {
     v8::Local<v8::Value> argv[2];
     if(listBaton->status == FT_OK)
     {
-      // Determine the length of the resulting list
+      // Determine the length of the resulting list 
       int resultListLength = 0;
-      for (DWORD i = 0; i < listBaton->listLength; i++)
+      for (DWORD i = 0; i < listBaton->listLength; i++) 
       {
         if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], vid, pid))
         {
@@ -156,35 +152,35 @@ class FindAllWorker : public NanAsyncWorker {
       }
 
       // Create Java Script Array for the resulting devices
-      Local<Array> array= NanNew<Array>(resultListLength);
-
+      Local<Array> array= Array::New(resultListLength);
+      
       int index = 0;
-      for (DWORD i = 0; i < listBaton->listLength; i++)
+      for (DWORD i = 0; i < listBaton->listLength; i++) 
       {
         // Add device to the array in case it matches the criteria
         if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], vid, pid))
         {
-          Local<Object> obj = NanNew<Object>();
-          obj->Set(NanNew<String>(DEVICE_DESCRIPTION_TAG), NanNew<String>(listBaton->devInfo[i].Description));
-          obj->Set(NanNew<String>(DEVICE_SERIAL_NR_TAG), NanNew<String>(listBaton->devInfo[i].SerialNumber));
-          obj->Set(NanNew<String>(DEVICE_LOCATION_ID_TAG), NanNew<Number>(listBaton->devInfo[i].LocId));
-          obj->Set(NanNew<String>(DEVICE_INDEX_TAG), NanNew<Number>(i));
-          obj->Set(NanNew<String>(DEVICE_VENDOR_ID_TAG), NanNew<Number>( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
-          obj->Set(NanNew<String>(DEVICE_PRODUCT_ID_TAG), NanNew<Number>( (listBaton->devInfo[i].ID) & (0xFFFF)));
+          Local<Object> obj = Object::New();
+          obj->Set(String::New(DEVICE_DESCRIPTION_TAG), String::New(listBaton->devInfo[i].Description));
+          obj->Set(String::New(DEVICE_SERIAL_NR_TAG), String::New(listBaton->devInfo[i].SerialNumber));
+          obj->Set(String::New(DEVICE_LOCATION_ID_TAG), Number::New(listBaton->devInfo[i].LocId));
+          obj->Set(String::New(DEVICE_INDEX_TAG), Number::New(i));
+          obj->Set(String::New(DEVICE_VENDOR_ID_TAG), Number::New( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
+          obj->Set(String::New(DEVICE_PRODUCT_ID_TAG), Number::New( (listBaton->devInfo[i].ID) & (0xFFFF)));
           array->Set(index++, obj);
         }
       }
 
-      argv[0] = NanUndefined();
+      argv[0] = Local<Value>::New(Undefined());
       argv[1] = array;
     }
     // something went wrong, return the error string
     else
     {
-      argv[0] = NanNew<String>(GetStatusString(listBaton->status));
-      argv[1] = NanUndefined();
+      argv[0] = String::New(GetStatusString(listBaton->status));
+      argv[1] = Local<Value>::New(Undefined());
     }
-
+    
     callback->Call(2, argv);
 
     if(listBaton->devInfo != NULL)
@@ -203,24 +199,22 @@ class FindAllWorker : public NanAsyncWorker {
 NAN_METHOD(FindAll) {
   NanScope();
 
-  cout << "findallmethod";
-
   int vid = 0;
   int pid = 0;
   NanCallback *callback;
 
-  if (args.Length() != 3)
+  if (args.Length() != 3) 
   {
     return NanThrowError("Wrong number of arguments");
   }
-  if (args[0]->IsNumber() && args[1]->IsNumber())
+  if (args[0]->IsNumber() && args[1]->IsNumber()) 
   {
     vid = (int) args[0]->NumberValue();
     pid = (int) args[1]->NumberValue();
   }
 
   // callback
-  if(!args[2]->IsFunction())
+  if(!args[2]->IsFunction()) 
   {
     return NanThrowError("Third argument must be a function");
   }
@@ -233,16 +227,16 @@ NAN_METHOD(FindAll) {
 
 void InitializeList(Handle<Object> target)
 {
-  Local<FunctionTemplate> tpl = NanNew<FunctionTemplate>();
-  tpl->SetClassName(NanNew<String>(JS_CLASS_NAME));
+  Local<FunctionTemplate> tpl = FunctionTemplate::New();
+  tpl->SetClassName(String::NewSymbol(JS_CLASS_NAME));
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
-
+  
   tpl->Set(
-      NanNew<String>("findAll")
-    , NanNew<FunctionTemplate>(FindAll)->GetFunction()
+      NanSymbol("findAll")
+    , v8::FunctionTemplate::New(FindAll)->GetFunction()
   );
 
-  target->Set(NanNew<String>(JS_CLASS_NAME), tpl->GetFunction());
+  target->Set(NanSymbol(JS_CLASS_NAME), tpl->GetFunction());
 
   uv_mutex_init(&vidPidMutex);
 }

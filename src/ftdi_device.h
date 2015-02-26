@@ -11,7 +11,7 @@
 using namespace v8;
 using namespace node;
 
-namespace ftdi_device 
+namespace ftdi_device
 {
 
 typedef struct
@@ -20,13 +20,13 @@ typedef struct
   DWORD length;
 } ReadBaton_t;
 
-typedef struct  
+typedef struct
 {
   uint8_t* data;
   DWORD length;
 } WriteBaton_t;
 
-typedef enum 
+typedef enum
 {
   ConnectType_ByIndex,
   ConnectType_BySerial,
@@ -49,12 +49,15 @@ typedef struct ConnectionParams_t
 
 } ConnectionParams_t;
 
-typedef struct 
+typedef struct
 {
   int baudRate;
   UCHAR wordLength;
   UCHAR stopBits;
   UCHAR parity;
+  UCHAR bitMode;
+  UCHAR bitMask;
+  bool hasBitSettings;
 } DeviceParams_t;
 
 typedef enum
@@ -64,11 +67,11 @@ typedef enum
   DeviceState_Closing
 } DeviceState_t;
 
-class FtdiDevice : public ObjectWrap 
+class FtdiDevice : public ObjectWrap
 {
   public:
     static void Initialize(Handle<Object> target);
-    
+
     FtdiDevice();
     ~FtdiDevice();
 

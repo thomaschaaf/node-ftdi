@@ -743,6 +743,17 @@ FT_STATUS FtdiDevice::SetDeviceSettings()
     return ftStatus;
   }
 
+  if (deviceParams.hasBitSettings == true) {
+    uv_mutex_lock(&libraryMutex);
+    ftStatus = FT_SetBitMode(ftHandle, deviceParams.bitMask, deviceParams.bitMode);
+    uv_mutex_unlock(&libraryMutex);
+    if (ftStatus != FT_OK)
+    {
+      fprintf(stderr, "Can't setBitMode: %s\n", error_strings[ftStatus]);
+      return ftStatus;
+    }
+  }
+
   // printf("Connection Settings set [Baud: %d, DataBits: %d, StopBits: %d, Parity: %d]\r\n", deviceParams.baudRate, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
   return ftStatus;
 }
@@ -754,6 +765,8 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
   Local<String> databits  = NanNew<String>(CONNECTION_DATABITS_TAG);
   Local<String> stopbits  = NanNew<String>(CONNECTION_STOPBITS_TAG);
   Local<String> parity    = NanNew<String>(CONNECTION_PARITY_TAG);
+  Local<String> bitmode   = NanNew<String>(CONNECTION_BITMODE);
+  Local<String> bitmask   = NanNew<String>(CONNECTION_BITMASK);
 
   if(options->Has(baudrate))
   {
@@ -774,6 +787,25 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
     deviceParams.parity = GetParity(str);
     delete[] str;
   }
+  bool hasBitSettings = false;
+  deviceParams.bitMode = 0;
+  deviceParams.bitMask = 0;
+
+  if(options->Has(bitmode))
+  {
+      deviceParams.bitMode = options->Get(bitmode)->ToInt32()->Int32Value();
+      hasBitSettings = true;
+  } else {
+      hasBitSettings = false;
+  }
+
+  if(hasBitSettings && options->Has(bitmask))
+  {
+      deviceParams.bitMask = options->Get(bitmask)->ToInt32()->Int32Value();
+      hasBitSettings = true;
+  }
+
+  deviceParams.hasBitSettings = hasBitSettings;
 }
 
 UCHAR GetWordLength(int wordLength)

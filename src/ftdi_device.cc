@@ -76,12 +76,12 @@ FtdiDevice::~FtdiDevice()
 NAN_METHOD(FtdiDevice::New) {
   NanScope();
 
-  Local<String> locationId    = String::New(DEVICE_LOCATION_ID_TAG);
-  Local<String> serial        = String::New(DEVICE_SERIAL_NR_TAG);
-  Local<String> index         = String::New(DEVICE_INDEX_TAG);
-  Local<String> description   = String::New(DEVICE_DESCRIPTION_TAG);
-  Local<String> vid           = String::New(DEVICE_VENDOR_ID_TAG);
-  Local<String> pid           = String::New(DEVICE_PRODUCT_ID_TAG);
+  Local<String> locationId    = NanNew<String>(DEVICE_LOCATION_ID_TAG);
+  Local<String> serial        = NanNew<String>(DEVICE_SERIAL_NR_TAG);
+  Local<String> index         = NanNew<String>(DEVICE_INDEX_TAG);
+  Local<String> description   = NanNew<String>(DEVICE_DESCRIPTION_TAG);
+  Local<String> vid           = NanNew<String>(DEVICE_VENDOR_ID_TAG);
+  Local<String> pid           = NanNew<String>(DEVICE_PRODUCT_ID_TAG);
 
   FtdiDevice* object = new FtdiDevice();
 
@@ -166,7 +166,7 @@ class ReadWorker : public NanAsyncWorker {
   void WorkComplete () {
     NanScope();
 
-    if (errmsg == NULL)
+    if (ErrorMessage() == NULL)
       HandleOKCallback();
     else
       HandleErrorCallback();
@@ -184,19 +184,19 @@ class ReadWorker : public NanAsyncWorker {
       Local<Value> argv[2];
 
       Local<Object> slowBuffer = NanNewBufferHandle((char*)baton->data, baton->length);
-      Local<Object> globalObj = Context::GetCurrent()->Global();
-      Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
-      Handle<Value> constructorArgs[3] = { slowBuffer, Integer::New(baton->length), Integer::New(0) };
+      Local<Object> globalObj = NanGetCurrentContext()->Global();
+      Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(NanNew<String>("Buffer")));
+      Handle<Value> constructorArgs[3] = { slowBuffer, NanNew<Integer>(baton->length), NanNew<Integer>(0) };
       Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
       argv[1] = actualBuffer;
 
       if(status != FT_OK)
       {
-        argv[0] = String::New(GetStatusString(status));
+        argv[0] = NanNew<String>(GetStatusString(status));
       }
       else
       {
-        argv[0] = Local<Value>::New(Undefined());
+        argv[0] = Local<Value>(NanUndefined());
       }
 
       callback->Call(2, argv);
@@ -331,11 +331,11 @@ class OpenWorker : public NanAsyncWorker {
       Local<Value> argv[1];
       if(status != FT_OK)
       {
-        argv[0] = String::New(GetStatusString(status));
+        argv[0] = NanNew<String>(GetStatusString(status));
       }
       else
       {
-        argv[0] = Local<Value>::New(Undefined());
+        argv[0] = Local<Value>(NanUndefined());
       }
 
       callback->Call(1, argv);
@@ -390,7 +390,7 @@ NAN_METHOD(FtdiDevice::Open) {
   if(device->deviceState == DeviceState_Open)
   {
     Local<Value> argv[1];
-    argv[0] = String::New(FT_STATUS_CUSTOM_ALREADY_OPEN);
+    argv[0] = NanNew<String>(FT_STATUS_CUSTOM_ALREADY_OPEN);
     callback = new NanCallback(args[1].As<v8::Function>());
     callback->Call(1, argv);
   }
@@ -525,6 +525,7 @@ class WriteWorker : public NanAsyncWorker {
   // here, so everything we need for input and output
   // should go on `this`.
   void Execute () {
+    cout << "asdfasdf";
     status = FtdiDevice::WriteAsync(device, baton);
   }
 
@@ -533,17 +534,19 @@ class WriteWorker : public NanAsyncWorker {
   // so it is safe to use V8 again
   void HandleOKCallback () {
     NanScope();
+    cout << "HandleOKCallback";
 
     if(callback != NULL)
     {
       Local<Value> argv[1];
+      cout << status;
       if(status != FT_OK)
       {
-        argv[0] = String::New(GetStatusString(status));
+        argv[0] = NanNew<String>(GetStatusString(status));
       }
       else
       {
-        argv[0] = Local<Value>::New(Undefined());
+        argv[0] = Local<Value>(NanUndefined());
       }
 
       callback->Call(1, argv);
@@ -569,7 +572,7 @@ NAN_METHOD(FtdiDevice::Write) {
   {
     return NanThrowError("First argument must be a buffer");
   }
-  Local<Object> buffer = Local<Object>::New(args[0]->ToObject());
+  Local<Object> buffer = NanNew(args[0]->ToObject());
 
   // Obtain Device Object
   FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
@@ -638,11 +641,11 @@ class CloseWorker : public NanAsyncWorker {
       Local<Value> argv[1];
       if(status != FT_OK)
       {
-        argv[0] = String::New(GetStatusString(status));
+        argv[0] = NanNew<String>(GetStatusString(status));
       }
       else
       {
-        argv[0] = Local<Value>::New(Undefined());
+        argv[0] = Local<Value>(NanUndefined());
       }
 
       callback->Call(1, argv);
@@ -673,7 +676,7 @@ NAN_METHOD(FtdiDevice::Close) {
     if(args[0]->IsFunction())
     {
       Local<Value> argv[1];
-      argv[0] = String::New(FT_STATUS_CUSTOM_ALREADY_CLOSING);
+      argv[0] = NanNew<String>(FT_STATUS_CUSTOM_ALREADY_CLOSING);
       callback = new NanCallback(args[0].As<v8::Function>());
       callback->Call(1, argv);
     }
@@ -740,30 +743,17 @@ FT_STATUS FtdiDevice::SetDeviceSettings()
     return ftStatus;
   }
 
-  if (deviceParams.hasBitSettings == true) {
-    uv_mutex_lock(&libraryMutex);
-    ftStatus = FT_SetBitMode(ftHandle, deviceParams.bitMask, deviceParams.bitMode);
-    uv_mutex_unlock(&libraryMutex);
-    if (ftStatus != FT_OK)
-    {
-        fprintf(stderr, "Can't setBitMode: %s\n", error_strings[ftStatus]);
-        return ftStatus;
-    }
-  }
-
   // printf("Connection Settings set [Baud: %d, DataBits: %d, StopBits: %d, Parity: %d]\r\n", deviceParams.baudRate, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
   return ftStatus;
 }
 
 void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
 {
-  HandleScope scope;
-  Local<String> baudrate  = String::New(CONNECTION_BAUDRATE_TAG);
-  Local<String> databits  = String::New(CONNECTION_DATABITS_TAG);
-  Local<String> stopbits  = String::New(CONNECTION_STOPBITS_TAG);
-  Local<String> parity    = String::New(CONNECTION_PARITY_TAG);
-  Local<String> bitmode   = String::New(CONNECTION_BITMODE);
-  Local<String> bitmask   = String::New(CONNECTION_BITMASK);
+  NanEscapableScope();
+  Local<String> baudrate  = NanNew<String>(CONNECTION_BAUDRATE_TAG);
+  Local<String> databits  = NanNew<String>(CONNECTION_DATABITS_TAG);
+  Local<String> stopbits  = NanNew<String>(CONNECTION_STOPBITS_TAG);
+  Local<String> parity    = NanNew<String>(CONNECTION_PARITY_TAG);
 
   if(options->Has(baudrate))
   {
@@ -784,25 +774,6 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
     deviceParams.parity = GetParity(str);
     delete[] str;
   }
-  bool hasBitSettings = false;
-  deviceParams.bitMode = 0;
-  deviceParams.bitMask = 0;
-
-  if(options->Has(bitmode))
-  {
-      deviceParams.bitMode = options->Get(bitmode)->ToInt32()->Int32Value();
-      hasBitSettings = true;
-  } else {
-      hasBitSettings = false;
-  }
-
-  if(hasBitSettings && options->Has(bitmask))
-  {
-      deviceParams.bitMask = options->Get(bitmask)->ToInt32()->Int32Value();
-      hasBitSettings = true;
-  }
-
-  deviceParams.hasBitSettings = hasBitSettings;
 }
 
 UCHAR GetWordLength(int wordLength)
@@ -947,16 +918,16 @@ void FtdiDevice::SignalCloseEvent()
 void FtdiDevice::Initialize(v8::Handle<v8::Object> target)
 {
   // Prepare constructor template
-  Local<FunctionTemplate> tpl = FunctionTemplate::New(New);
-  tpl->SetClassName(String::NewSymbol(JS_CLASS_NAME));
+  Local<FunctionTemplate> tpl = NanNew<FunctionTemplate>(New);
+  tpl->SetClassName(NanNew<String>(JS_CLASS_NAME));
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
   // Prototype
-  tpl->PrototypeTemplate()->Set(String::NewSymbol(JS_WRITE_FUNCTION), FunctionTemplate::New(Write)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol(JS_OPEN_FUNCTION), FunctionTemplate::New(Open)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol(JS_CLOSE_FUNCTION), FunctionTemplate::New(Close)->GetFunction());
+  tpl->PrototypeTemplate()->Set(NanNew<String>(JS_WRITE_FUNCTION), NanNew<FunctionTemplate>(Write)->GetFunction());
+  tpl->PrototypeTemplate()->Set(NanNew<String>(JS_OPEN_FUNCTION), NanNew<FunctionTemplate>(Open)->GetFunction());
+  tpl->PrototypeTemplate()->Set(NanNew<String>(JS_CLOSE_FUNCTION), NanNew<FunctionTemplate>(Close)->GetFunction());
 
   Local<Function> constructor = tpl->GetFunction();
-  target->Set(String::NewSymbol(JS_CLASS_NAME), constructor);
+  target->Set(NanNew<String>(JS_CLASS_NAME), constructor);
 }
 
 extern "C"

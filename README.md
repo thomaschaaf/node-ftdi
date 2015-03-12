@@ -1,16 +1,18 @@
 <pre>
-  eeeee eeeee eeeee eeee       e  eeeee 
-  8   8 8  88 8   8 8          8  8   " 
-  8e  8 8   8 8e  8 8eee       8e 8eeee 
-  88  8 8   8 88  8 88      e  88    88 
+  eeeee eeeee eeeee eeee       e  eeeee
+  8   8 8  88 8   8 8          8  8   "
+  8e  8 8   8 8e  8 8eee       8e 8eeee
+  88  8 8   8 88  8 88      e  88    88
   88  8 8eee8 88ee8 88ee 88 8ee88 8ee88
 
-  eeee eeeee eeeee e  
-  8      8   8   8 8  
-  8eee   8e  8e  8 8e 
-  88     88  88  8 88 
-  88     88  88ee8 88 
+  eeee eeeee eeeee e
+  8      8   8   8 8
+  8eee   8e  8e  8 8e
+  88     88  88  8 88
+  88     88  88ee8 88
 </pre>
+
+[![npm](https://img.shields.io/npm/v/ftdi.svg)](https://npmjs.org/package/ftdi)
 
 # Prerequisites:
 
@@ -27,7 +29,7 @@ This assumes you have everything on your system necessary to compile ANY native 
 
 ### Windows:
 
-Ensure you have Visual Studio 2010 installed. If you have any version OTHER THAN VS 2010, please read this: https://github.com/TooTallNate/node-gyp/issues/44 
+Ensure you have Visual Studio 2010 installed. If you have any version OTHER THAN VS 2010, please read this: https://github.com/TooTallNate/node-gyp/issues/44
 
 ### Mac OS X:
 
@@ -77,7 +79,9 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
     baudrate: 115200,
     databits: 8,
     stopbits: 1,
-    parity: 'none'
+    parity: 'none',
+    // bitmode: 'cbus', // for bit bang
+    // bitmask: 0xff    // for bit bang
   },
   function(err) {
 
@@ -94,7 +98,46 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
 });
 ```
 
+### Bit Bang infos
+bitmask: Is always a number (one byte).
+
+bitmode: Can be directly a number (one byte) like 0x20 or a string like 'cbus'.
+
+mapping:
+
+```nodejs
+var bitmodes = {
+  'reset' : 0x00,
+  'async' : 0x01,
+  'mpsse' : 0x02,
+  'sync'  : 0x04,
+  'mcu'   : 0x0B,
+  'fast'  : 0x10,
+  'cbus'  : 0x20,
+  'single': 0x40
+};
+
+/**
+ * 0x00 = Reset
+ * 0x01 = Asynchronous Bit Bang
+ * 0x02 = MPSSE (FT2232, FT2232H, FT4232H and FT232H devices only)
+ * 0x04 = Synchronous Bit Bang (FT232R, FT245R, FT2232, FT2232H, FT4232H and FT232H devices only)
+ * 0x08 = MCU Host Bus Emulation Mode (FT2232, FT2232H, FT4232H and FT232H devices only)
+ * 0x10 = Fast Opto-Isolated Serial Mode (FT2232, FT2232H, FT4232H and FT232H devices only)
+ * 0x20 = CBUS Bit Bang Mode (FT232R and FT232H devices only)
+ * 0x40 = Single Channel Synchronous 245 FIFO Mode (FT2232H and FT232H devices only)
+ */
+```
+
 # Release Notes
+
+## v1.1.0
+
+- added bit bang support
+
+## v1.0.3
+
+- revert "ready for node >= 0.11.4"
 
 ## v1.0.2
 
@@ -111,7 +154,7 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
 
 # License
 
-Copyright (c) 2013 Kaba AG
+Copyright (c) 2014 Kaba AG
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

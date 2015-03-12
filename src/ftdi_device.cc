@@ -59,13 +59,13 @@ void ToCString(Local<String> val, char ** ptr);
  * CREATION Section
  *****************************/
 
-FtdiDevice::FtdiDevice() 
+FtdiDevice::FtdiDevice()
 {
   deviceState = DeviceState_Idle;
   uv_mutex_init(&closeMutex);
 };
 
-FtdiDevice::~FtdiDevice() 
+FtdiDevice::~FtdiDevice()
 {
   if(connectParams.connectString != NULL)
   {
@@ -76,17 +76,17 @@ FtdiDevice::~FtdiDevice()
 NAN_METHOD(FtdiDevice::New) {
   NanScope();
 
-  Local<String> locationId    = String::New(DEVICE_LOCATION_ID_TAG);
-  Local<String> serial        = String::New(DEVICE_SERIAL_NR_TAG);
-  Local<String> index         = String::New(DEVICE_INDEX_TAG);
-  Local<String> description   = String::New(DEVICE_DESCRIPTION_TAG);
-  Local<String> vid           = String::New(DEVICE_VENDOR_ID_TAG);
-  Local<String> pid           = String::New(DEVICE_PRODUCT_ID_TAG);
+  Local<String> locationId    = NanNew<String>(DEVICE_LOCATION_ID_TAG);
+  Local<String> serial        = NanNew<String>(DEVICE_SERIAL_NR_TAG);
+  Local<String> index         = NanNew<String>(DEVICE_INDEX_TAG);
+  Local<String> description   = NanNew<String>(DEVICE_DESCRIPTION_TAG);
+  Local<String> vid           = NanNew<String>(DEVICE_VENDOR_ID_TAG);
+  Local<String> pid           = NanNew<String>(DEVICE_PRODUCT_ID_TAG);
 
   FtdiDevice* object = new FtdiDevice();
 
   // Check if the argument is an object
-  if(args[0]->IsObject()) 
+  if(args[0]->IsObject())
   {
     Local<Object> obj = args[0]->ToObject();
 
@@ -98,33 +98,33 @@ NAN_METHOD(FtdiDevice::New) {
      *   4) By index
      * In this order we check for availability of the parameter and the first valid we found is taken
      */
-    if(obj->Has(locationId) && obj->Get(locationId)->Int32Value() != 0) 
+    if(obj->Has(locationId) && obj->Get(locationId)->Int32Value() != 0)
     {
       object->connectParams.connectId = obj->Get(locationId)->Int32Value();
       object->connectParams.connectType = ConnectType_ByLocationId;
     }
-    else if(obj->Has(serial) && obj->Get(serial)->ToString()->Length() > 0) 
+    else if(obj->Has(serial) && obj->Get(serial)->ToString()->Length() > 0)
     {
       ToCString(obj->Get(serial)->ToString(), &object->connectParams.connectString);
       object->connectParams.connectType = ConnectType_BySerial;
     }
-    else if(obj->Has(description) && obj->Get(description)->ToString()->Length() > 0) 
+    else if(obj->Has(description) && obj->Get(description)->ToString()->Length() > 0)
     {
       ToCString(obj->Get(description)->ToString(), &object->connectParams.connectString);
       object->connectParams.connectType = ConnectType_ByDescription;
     }
-    else if(obj->Has(index)) 
+    else if(obj->Has(index))
     {
       object->connectParams.connectId = obj->Get(index)->Int32Value();
       object->connectParams.connectType = ConnectType_ByIndex;
     }
     object->connectParams.vid = 0;
-    if(obj->Has(vid)) 
+    if(obj->Has(vid))
     {
       object->connectParams.vid = obj->Get(vid)->Int32Value();
     }
     object->connectParams.pid = 0;
-    if(obj->Has(pid)) 
+    if(obj->Has(pid))
     {
       object->connectParams.pid = obj->Get(pid)->Int32Value();
     }
@@ -139,7 +139,7 @@ NAN_METHOD(FtdiDevice::New) {
   {
     return NanThrowTypeError("new expects a object as argument");
   }
-  
+
   object->Wrap(args.This());
 
   NanReturnValue(args.This());
@@ -166,7 +166,7 @@ class ReadWorker : public NanAsyncWorker {
   void WorkComplete () {
     NanScope();
 
-    if (errmsg == NULL)
+    if (ErrorMessage() == NULL)
       HandleOKCallback();
     else
       HandleErrorCallback();
@@ -184,19 +184,19 @@ class ReadWorker : public NanAsyncWorker {
       Local<Value> argv[2];
 
       Local<Object> slowBuffer = NanNewBufferHandle((char*)baton->data, baton->length);
-      Local<Object> globalObj = Context::GetCurrent()->Global();
-      Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(String::New("Buffer")));
-      Handle<Value> constructorArgs[3] = { slowBuffer, Integer::New(baton->length), Integer::New(0) };
+      Local<Object> globalObj = NanGetCurrentContext()->Global();
+      Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(NanNew<String>("Buffer")));
+      Handle<Value> constructorArgs[3] = { slowBuffer, NanNew<Integer>(baton->length), NanNew<Integer>(0) };
       Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
       argv[1] = actualBuffer;
 
       if(status != FT_OK)
       {
-        argv[0] = String::New(GetStatusString(status));
+        argv[0] = NanNew<String>(GetStatusString(status));
       }
       else
       {
-        argv[0] = Local<Value>::New(Undefined());
+        argv[0] = Local<Value>(NanUndefined());
       }
 
       callback->Call(2, argv);
@@ -215,8 +215,8 @@ class ReadWorker : public NanAsyncWorker {
       uv_mutex_unlock(&device->closeMutex);
     }
     else
-    {   
-      // Restart reading loop  
+    {
+      // Restart reading loop
       AsyncQueueWorkerPersistent(this);
     }
 
@@ -242,7 +242,7 @@ FT_STATUS FtdiDevice::ReadDataAsync(FtdiDevice* device, ReadBaton_t* baton)
     device->WaitForReadOrCloseEvent();
 
     // Check Queue Status
-    uv_mutex_lock(&libraryMutex);  
+    uv_mutex_lock(&libraryMutex);
     ftStatus = FT_GetQueueStatus(device->ftHandle, &RxBytes);
     uv_mutex_unlock(&libraryMutex);
 
@@ -257,14 +257,14 @@ FT_STATUS FtdiDevice::ReadDataAsync(FtdiDevice* device, ReadBaton_t* baton)
     {
       baton->data = new uint8_t[RxBytes];
 
-      uv_mutex_lock(&libraryMutex);  
+      uv_mutex_lock(&libraryMutex);
       ftStatus = FT_Read(device->ftHandle, baton->data, RxBytes, &BytesReceived);
-      uv_mutex_unlock(&libraryMutex);  
-      if (ftStatus != FT_OK) 
+      uv_mutex_unlock(&libraryMutex);
+      if (ftStatus != FT_OK)
       {
         fprintf(stderr, "Can't read from ftdi device: %s\n", error_strings[ftStatus]);
       }
-      
+
       baton->length = BytesReceived;
       return ftStatus;
     }
@@ -272,9 +272,9 @@ FT_STATUS FtdiDevice::ReadDataAsync(FtdiDevice* device, ReadBaton_t* baton)
     // Check if we are closing the device
     if(device->deviceState == DeviceState_Closing)
     {
-      uv_mutex_lock(&libraryMutex);  
+      uv_mutex_lock(&libraryMutex);
       FT_Purge(device->ftHandle, FT_PURGE_RX | FT_PURGE_TX);
-      uv_mutex_unlock(&libraryMutex);  
+      uv_mutex_unlock(&libraryMutex);
       return ftStatus;
     }
   }
@@ -307,7 +307,7 @@ class OpenWorker : public NanAsyncWorker {
     /**
      * If the open process was sucessful, we start the read thread
      * which waits for data events sents from the device.
-     */ 
+     */
     if(status == FT_OK)
     {
       status = device->PrepareAsyncRead();
@@ -331,11 +331,11 @@ class OpenWorker : public NanAsyncWorker {
       Local<Value> argv[1];
       if(status != FT_OK)
       {
-        argv[0] = String::New(GetStatusString(status));
+        argv[0] = NanNew<String>(GetStatusString(status));
       }
       else
       {
-        argv[0] = Local<Value>::New(Undefined());
+        argv[0] = Local<Value>(NanUndefined());
       }
 
       callback->Call(1, argv);
@@ -361,25 +361,25 @@ NAN_METHOD(FtdiDevice::Open) {
     return NanThrowError("No FtdiDevice object found in Java Script object");
   }
 
-  if (args.Length() != 3) 
+  if (args.Length() != 3)
   {
     return NanThrowError("open() expects three arguments");
   }
 
-  if (!args[0]->IsObject()) 
+  if (!args[0]->IsObject())
   {
     return NanThrowError("open() expects a object as first argument");
   }
 
   // options
-  if(!args[1]->IsFunction()) 
+  if(!args[1]->IsFunction())
   {
     return NanThrowError("open() expects a function (openFisnished) as second argument");
   }
   Local<Value> readCallback = args[1];
 
   // options
-  if(!args[2]->IsFunction()) 
+  if(!args[2]->IsFunction())
   {
     return NanThrowError("open() expects a function (readFinsihed) as third argument");
   }
@@ -390,7 +390,7 @@ NAN_METHOD(FtdiDevice::Open) {
   if(device->deviceState == DeviceState_Open)
   {
     Local<Value> argv[1];
-    argv[0] = String::New(FT_STATUS_CUSTOM_ALREADY_OPEN);
+    argv[0] = NanNew<String>(FT_STATUS_CUSTOM_ALREADY_OPEN);
     callback = new NanCallback(args[1].As<v8::Function>());
     callback->Call(1, argv);
   }
@@ -400,7 +400,7 @@ NAN_METHOD(FtdiDevice::Open) {
 
     // Extract the connection parameters
     device->ExtractDeviceSettings(args[0]->ToObject());
-    
+
     callback_read = new NanCallback(readCallback.As<v8::Function>());
     callback = new NanCallback(openCallback.As<v8::Function>());
 
@@ -410,19 +410,19 @@ NAN_METHOD(FtdiDevice::Open) {
   NanReturnUndefined();
 }
 
-FT_STATUS FtdiDevice::OpenAsync(FtdiDevice* device, NanCallback *callback_read) 
+FT_STATUS FtdiDevice::OpenAsync(FtdiDevice* device, NanCallback *callback_read)
 {
   FT_STATUS ftStatus;
 
   ftStatus = device->OpenDevice();
-  if (ftStatus != FT_OK) 
+  if (ftStatus != FT_OK)
   {
     fprintf(stderr, "Can't open ftdi device: %s\n", error_strings[ftStatus]);
   }
   else
   {
     ftStatus = device->SetDeviceSettings();
-    if (ftStatus != FT_OK) 
+    if (ftStatus != FT_OK)
     {
       fprintf(stderr, "Can't Set DeviceSettings: %s\n", error_strings[ftStatus]);
     }
@@ -438,7 +438,7 @@ FT_STATUS FtdiDevice::OpenDevice()
     // For open by Index case
     if(connectParams.connectType == ConnectType_ByIndex)
     {
-        uv_mutex_lock(&libraryMutex); 
+        uv_mutex_lock(&libraryMutex);
 #ifndef WIN32
         // In case of Linux / Mac we have to set the VID PID of the
         // device we want to connect to
@@ -448,7 +448,7 @@ FT_STATUS FtdiDevice::OpenDevice()
         {
             status = FT_Open(connectParams.connectId, &ftHandle);
         }
-        uv_mutex_unlock(&libraryMutex);  
+        uv_mutex_unlock(&libraryMutex);
         return status;
     }
     // other cases
@@ -475,7 +475,7 @@ FT_STATUS FtdiDevice::OpenDevice()
             }
             break;
 
-            
+
             case ConnectType_ByLocationId:
             {
                 arg = (PVOID) connectParams.connectId;
@@ -490,8 +490,8 @@ FT_STATUS FtdiDevice::OpenDevice()
             }
         }
 
-        uv_mutex_lock(&vidPidMutex); 
-        uv_mutex_lock(&libraryMutex);  
+        uv_mutex_lock(&vidPidMutex);
+        uv_mutex_lock(&libraryMutex);
 
 #ifndef WIN32
         // In case of Linux / Mac we have to set the VID PID of the
@@ -502,8 +502,8 @@ FT_STATUS FtdiDevice::OpenDevice()
         {
             status = FT_OpenEx(arg, flags, &ftHandle);
         }
-        uv_mutex_unlock(&libraryMutex); 
-        uv_mutex_unlock(&vidPidMutex);  
+        uv_mutex_unlock(&libraryMutex);
+        uv_mutex_unlock(&vidPidMutex);
         return status;
     }
 
@@ -533,17 +533,17 @@ class WriteWorker : public NanAsyncWorker {
   // so it is safe to use V8 again
   void HandleOKCallback () {
     NanScope();
-    
+
     if(callback != NULL)
     {
       Local<Value> argv[1];
       if(status != FT_OK)
       {
-        argv[0] = String::New(GetStatusString(status));
+        argv[0] = NanNew<String>(GetStatusString(status));
       }
       else
       {
-        argv[0] = Local<Value>::New(Undefined());
+        argv[0] = Local<Value>(NanUndefined());
       }
 
       callback->Call(1, argv);
@@ -569,7 +569,7 @@ NAN_METHOD(FtdiDevice::Write) {
   {
     return NanThrowError("First argument must be a buffer");
   }
-  Local<Object> buffer = Local<Object>::New(args[0]->ToObject());
+  Local<Object> buffer = NanNew(args[0]->ToObject());
 
   // Obtain Device Object
   FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
@@ -580,7 +580,7 @@ NAN_METHOD(FtdiDevice::Write) {
 
   Local<Value> writeCallback;
   // options
-  if(args.Length() > 1 && args[1]->IsFunction()) 
+  if(args.Length() > 1 && args[1]->IsFunction())
   {
     writeCallback = args[1];
     callback = new NanCallback(writeCallback.As<v8::Function>());
@@ -596,12 +596,12 @@ NAN_METHOD(FtdiDevice::Write) {
   NanReturnUndefined();
 }
 
-FT_STATUS FtdiDevice::WriteAsync(FtdiDevice* device, WriteBaton_t* baton) 
+FT_STATUS FtdiDevice::WriteAsync(FtdiDevice* device, WriteBaton_t* baton)
 {
   FT_STATUS ftStatus;
   DWORD bytesWritten;
 
-  uv_mutex_lock(&libraryMutex);  
+  uv_mutex_lock(&libraryMutex);
   ftStatus = FT_Write(device->ftHandle, baton->data, baton->length, &bytesWritten);
   uv_mutex_unlock(&libraryMutex);
 
@@ -630,7 +630,7 @@ class CloseWorker : public NanAsyncWorker {
   // so it is safe to use V8 again
   void HandleOKCallback () {
     NanScope();
-    
+
     device->deviceState = DeviceState_Idle;
 
     if(callback != NULL)
@@ -638,11 +638,11 @@ class CloseWorker : public NanAsyncWorker {
       Local<Value> argv[1];
       if(status != FT_OK)
       {
-        argv[0] = String::New(GetStatusString(status));
+        argv[0] = NanNew<String>(GetStatusString(status));
       }
       else
       {
-        argv[0] = Local<Value>::New(Undefined());
+        argv[0] = Local<Value>(NanUndefined());
       }
 
       callback->Call(1, argv);
@@ -670,10 +670,10 @@ NAN_METHOD(FtdiDevice::Close) {
   if(device->deviceState != DeviceState_Open)
   {
     // callback
-    if(args[0]->IsFunction()) 
+    if(args[0]->IsFunction())
     {
       Local<Value> argv[1];
-      argv[0] = String::New(FT_STATUS_CUSTOM_ALREADY_CLOSING);
+      argv[0] = NanNew<String>(FT_STATUS_CUSTOM_ALREADY_CLOSING);
       callback = new NanCallback(args[0].As<v8::Function>());
       callback->Call(1, argv);
     }
@@ -684,7 +684,7 @@ NAN_METHOD(FtdiDevice::Close) {
     device->deviceState = DeviceState_Closing;
 
      // callback
-    if(args[0]->IsFunction()) 
+    if(args[0]->IsFunction())
     {
       callback = new NanCallback(args[0].As<v8::Function>());
     }
@@ -695,7 +695,7 @@ NAN_METHOD(FtdiDevice::Close) {
   NanReturnUndefined();
 }
 
-FT_STATUS FtdiDevice::CloseAsync(FtdiDevice* device) 
+FT_STATUS FtdiDevice::CloseAsync(FtdiDevice* device)
 {
   FT_STATUS ftStatus;
 
@@ -707,7 +707,7 @@ FT_STATUS FtdiDevice::CloseAsync(FtdiDevice* device)
   uv_mutex_unlock(&device->closeMutex);
 
   // Close the device
-  uv_mutex_lock(&libraryMutex);  
+  uv_mutex_lock(&libraryMutex);
   ftStatus = FT_Close(device->ftHandle);
   uv_mutex_unlock(&libraryMutex);
 
@@ -721,23 +721,34 @@ FT_STATUS FtdiDevice::CloseAsync(FtdiDevice* device)
 FT_STATUS FtdiDevice::SetDeviceSettings()
 {
   FT_STATUS ftStatus;
-  
-  uv_mutex_lock(&libraryMutex);  
+
+  uv_mutex_lock(&libraryMutex);
   ftStatus = FT_SetDataCharacteristics(ftHandle, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
-  uv_mutex_unlock(&libraryMutex);  
-  if (ftStatus != FT_OK) 
+  uv_mutex_unlock(&libraryMutex);
+  if (ftStatus != FT_OK)
   {
     fprintf(stderr, "Can't Set FT_SetDataCharacteristics: %s\n", error_strings[ftStatus]);
     return ftStatus;
   }
 
-  uv_mutex_lock(&libraryMutex);  
+  uv_mutex_lock(&libraryMutex);
   ftStatus = FT_SetBaudRate(ftHandle, deviceParams.baudRate);
-  uv_mutex_unlock(&libraryMutex);  
-  if (ftStatus != FT_OK) 
+  uv_mutex_unlock(&libraryMutex);
+  if (ftStatus != FT_OK)
   {
     fprintf(stderr, "Can't setBaudRate: %s\n", error_strings[ftStatus]);
     return ftStatus;
+  }
+
+  if (deviceParams.hasBitSettings == true) {
+    uv_mutex_lock(&libraryMutex);
+    ftStatus = FT_SetBitMode(ftHandle, deviceParams.bitMask, deviceParams.bitMode);
+    uv_mutex_unlock(&libraryMutex);
+    if (ftStatus != FT_OK)
+    {
+      fprintf(stderr, "Can't setBitMode: %s\n", error_strings[ftStatus]);
+      return ftStatus;
+    }
   }
 
   // printf("Connection Settings set [Baud: %d, DataBits: %d, StopBits: %d, Parity: %d]\r\n", deviceParams.baudRate, deviceParams.wordLength, deviceParams.stopBits, deviceParams.parity);
@@ -746,31 +757,52 @@ FT_STATUS FtdiDevice::SetDeviceSettings()
 
 void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
 {
-  HandleScope scope;
-  Local<String> baudrate  = String::New(CONNECTION_BAUDRATE_TAG);
-  Local<String> databits  = String::New(CONNECTION_DATABITS_TAG);
-  Local<String> stopbits  = String::New(CONNECTION_STOPBITS_TAG);
-  Local<String> parity    = String::New(CONNECTION_PARITY_TAG);
+  NanEscapableScope();
+  Local<String> baudrate  = NanNew<String>(CONNECTION_BAUDRATE_TAG);
+  Local<String> databits  = NanNew<String>(CONNECTION_DATABITS_TAG);
+  Local<String> stopbits  = NanNew<String>(CONNECTION_STOPBITS_TAG);
+  Local<String> parity    = NanNew<String>(CONNECTION_PARITY_TAG);
+  Local<String> bitmode   = NanNew<String>(CONNECTION_BITMODE);
+  Local<String> bitmask   = NanNew<String>(CONNECTION_BITMASK);
 
-  if(options->Has(baudrate)) 
+  if(options->Has(baudrate))
   {
     deviceParams.baudRate = options->Get(baudrate)->ToInt32()->Int32Value();
   }
-  if(options->Has(databits)) 
+  if(options->Has(databits))
   {
     deviceParams.wordLength = GetWordLength(options->Get(databits)->ToInt32()->Int32Value());
   }
-  if(options->Has(stopbits)) 
+  if(options->Has(stopbits))
   {
     deviceParams.stopBits = GetStopBits(options->Get(stopbits)->ToInt32()->Int32Value());
   }
-  if(options->Has(parity)) 
+  if(options->Has(parity))
   {
     char* str;
     ToCString(options->Get(parity)->ToString(), &str);
     deviceParams.parity = GetParity(str);
     delete[] str;
   }
+  bool hasBitSettings = false;
+  deviceParams.bitMode = 0;
+  deviceParams.bitMask = 0;
+
+  if(options->Has(bitmode))
+  {
+      deviceParams.bitMode = options->Get(bitmode)->ToInt32()->Int32Value();
+      hasBitSettings = true;
+  } else {
+      hasBitSettings = false;
+  }
+
+  if(hasBitSettings && options->Has(bitmask))
+  {
+      deviceParams.bitMask = options->Get(bitmask)->ToInt32()->Int32Value();
+      hasBitSettings = true;
+  }
+
+  deviceParams.hasBitSettings = hasBitSettings;
 }
 
 UCHAR GetWordLength(int wordLength)
@@ -821,7 +853,7 @@ UCHAR GetParity(const char* string)
  *  string. Be sure to free the memory as soon as you dont need
  *  it anymore.
  */
-void ToCString(Local<String> val, char ** ptr) 
+void ToCString(Local<String> val, char ** ptr)
 {
   *ptr = new char[val->Utf8Length() + 1];
 #if (NODE_MODULE_VERSION > 0x000B)
@@ -843,9 +875,9 @@ FT_STATUS FtdiDevice::PrepareAsyncRead()
   FT_STATUS status;
   pthread_mutex_init(&dataEventHandle.eMutex, NULL);
   pthread_cond_init(&dataEventHandle.eCondVar, NULL);
-  uv_mutex_lock(&libraryMutex);  
+  uv_mutex_lock(&libraryMutex);
   status = FT_SetEventNotification(ftHandle, EVENT_MASK, (PVOID) &dataEventHandle);
-  uv_mutex_unlock(&libraryMutex);  
+  uv_mutex_unlock(&libraryMutex);
   return status;
 }
 
@@ -860,7 +892,7 @@ void FtdiDevice::WaitForReadOrCloseEvent()
   {
     struct timespec ts;
     struct timeval tp;
-    
+
     gettimeofday(&tp, NULL);
 
     int additionalSeconds = 0;
@@ -895,9 +927,9 @@ FT_STATUS FtdiDevice::PrepareAsyncRead()
 {
   FT_STATUS status;
   dataEventHandle = CreateEvent(NULL, false /* auto-reset event */, false /* non-signalled state */, "");
-  uv_mutex_lock(&libraryMutex);  
+  uv_mutex_lock(&libraryMutex);
   status = FT_SetEventNotification(ftHandle, EVENT_MASK, dataEventHandle);
-  uv_mutex_unlock(&libraryMutex);  
+  uv_mutex_unlock(&libraryMutex);
   return status;
 }
 
@@ -912,24 +944,24 @@ void FtdiDevice::SignalCloseEvent()
 }
 #endif
 
-void FtdiDevice::Initialize(v8::Handle<v8::Object> target) 
+void FtdiDevice::Initialize(v8::Handle<v8::Object> target)
 {
   // Prepare constructor template
-  Local<FunctionTemplate> tpl = FunctionTemplate::New(New);
-  tpl->SetClassName(String::NewSymbol(JS_CLASS_NAME));
+  Local<FunctionTemplate> tpl = NanNew<FunctionTemplate>(New);
+  tpl->SetClassName(NanNew<String>(JS_CLASS_NAME));
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
   // Prototype
-  tpl->PrototypeTemplate()->Set(String::NewSymbol(JS_WRITE_FUNCTION), FunctionTemplate::New(Write)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol(JS_OPEN_FUNCTION), FunctionTemplate::New(Open)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::NewSymbol(JS_CLOSE_FUNCTION), FunctionTemplate::New(Close)->GetFunction());
+  tpl->PrototypeTemplate()->Set(NanNew<String>(JS_WRITE_FUNCTION), NanNew<FunctionTemplate>(Write)->GetFunction());
+  tpl->PrototypeTemplate()->Set(NanNew<String>(JS_OPEN_FUNCTION), NanNew<FunctionTemplate>(Open)->GetFunction());
+  tpl->PrototypeTemplate()->Set(NanNew<String>(JS_CLOSE_FUNCTION), NanNew<FunctionTemplate>(Close)->GetFunction());
 
   Local<Function> constructor = tpl->GetFunction();
-  target->Set(String::NewSymbol(JS_CLASS_NAME), constructor);
+  target->Set(NanNew<String>(JS_CLASS_NAME), constructor);
 }
 
 extern "C"
 {
-  void init (v8::Handle<v8::Object> target) 
+  void init (v8::Handle<v8::Object> target)
   {
     InitializeList(target);
     FtdiDevice::Initialize(target);

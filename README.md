@@ -70,7 +70,7 @@ var device = new ftdi.FtdiDevice(0);  // index in list function
 var ftdi = require('ftdi');
 
 ftdi.find(0x27f4, 0x0203, function(err, devices) {
-  var device = new ftdi.FtdiDevice(devices[0]);
+  var device = new ftdi.FtdiDevice(0);
 
   device.on('error', function(err) {
   });

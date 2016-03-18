@@ -5,12 +5,13 @@
 #include <node.h>
 #include <ftd2xx.h>
 
-#include "nan.h"
-
 using namespace v8;
 using namespace node;
 
 
 void InitializeList(Handle<Object> target);
+
+Handle<Value> FindAll(const Arguments& args);
+Handle<Value> SetVidPid(const Arguments& args);
 
 #endif

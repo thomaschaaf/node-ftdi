@@ -43,6 +43,7 @@
         ['OS != "win"',
           {
             'include_dirs+': [
+              '/usr/local/include',
               '/usr/local/include/libftd2xx/'
             ],
             'ldflags': [

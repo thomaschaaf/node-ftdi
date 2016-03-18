@@ -121,10 +121,10 @@ DeviceListBaton* FindAllAsync(int vid, int pid)
   return listBaton;
 }
 
-class FindAllWorker : public NanAsyncWorker {
+class FindAllWorker : public Nan::AsyncWorker {
  public:
-  FindAllWorker(NanCallback *callback, int vid, int pid)
-    : NanAsyncWorker(callback), vid(vid), pid(pid) {}
+  FindAllWorker(Nan::Callback *callback, int vid, int pid)
+    : Nan::AsyncWorker(callback), vid(vid), pid(pid) {}
   ~FindAllWorker() {}
 
   // Executed inside the worker-thread.
@@ -139,7 +139,7 @@ class FindAllWorker : public NanAsyncWorker {
   // this function will be run inside the main event loop
   // so it is safe to use V8 again
   void HandleOKCallback () {
-    NanScope();
+    Nan::HandleScope scope;
 
     v8::Local<v8::Value> argv[2];
     if(listBaton->status == FT_OK)
@@ -155,7 +155,7 @@ class FindAllWorker : public NanAsyncWorker {
       }
 
       // Create Java Script Array for the resulting devices
-      Local<Array> array= NanNew<Array>(resultListLength);
+      Local<Array> array= Nan::New<Array>(resultListLength);
 
       int index = 0;
       for (DWORD i = 0; i < listBaton->listLength; i++)
@@ -163,25 +163,25 @@ class FindAllWorker : public NanAsyncWorker {
         // Add device to the array in case it matches the criteria
         if(DeviceMatchesFilterCriteria(&listBaton->devInfo[i], vid, pid))
         {
-          Local<Object> obj = NanNew<Object>();
-          obj->Set(NanNew<String>(DEVICE_DESCRIPTION_TAG), NanNew<String>(listBaton->devInfo[i].Description));
-          obj->Set(NanNew<String>(DEVICE_SERIAL_NR_TAG), NanNew<String>(listBaton->devInfo[i].SerialNumber));
-          obj->Set(NanNew<String>(DEVICE_LOCATION_ID_TAG), NanNew<Number>(listBaton->devInfo[i].LocId));
-          obj->Set(NanNew<String>(DEVICE_INDEX_TAG), NanNew<Number>(i));
-          obj->Set(NanNew<String>(DEVICE_VENDOR_ID_TAG), NanNew<Number>( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
-          obj->Set(NanNew<String>(DEVICE_PRODUCT_ID_TAG), NanNew<Number>( (listBaton->devInfo[i].ID) & (0xFFFF)));
+          Local<Object> obj = Nan::New<Object>();
+          obj->Set(Nan::New<String>(DEVICE_DESCRIPTION_TAG).ToLocalChecked(), Nan::New<String>(listBaton->devInfo[i].Description).ToLocalChecked());
+          obj->Set(Nan::New<String>(DEVICE_SERIAL_NR_TAG).ToLocalChecked(), Nan::New<String>(listBaton->devInfo[i].SerialNumber).ToLocalChecked());
+          obj->Set(Nan::New<String>(DEVICE_LOCATION_ID_TAG).ToLocalChecked(), Nan::New<Number>(listBaton->devInfo[i].LocId));
+          obj->Set(Nan::New<String>(DEVICE_INDEX_TAG).ToLocalChecked(), Nan::New<Number>(i));
+          obj->Set(Nan::New<String>(DEVICE_VENDOR_ID_TAG).ToLocalChecked(), Nan::New<Number>( (listBaton->devInfo[i].ID >> 16) & (0xFFFF)));
+          obj->Set(Nan::New<String>(DEVICE_PRODUCT_ID_TAG).ToLocalChecked(), Nan::New<Number>( (listBaton->devInfo[i].ID) & (0xFFFF)));
           array->Set(index++, obj);
         }
       }
 
-      argv[0] = NanUndefined();
+      argv[0] = Nan::Undefined();
       argv[1] = array;
     }
     // something went wrong, return the error string
     else
     {
-      argv[0] = NanNew<String>(GetStatusString(listBaton->status));
-      argv[1] = NanUndefined();
+      argv[0] = Nan::New<String>(GetStatusString(listBaton->status)).ToLocalChecked();
+      argv[1] = Nan::Undefined();
     }
 
     callback->Call(2, argv);
@@ -200,46 +200,46 @@ class FindAllWorker : public NanAsyncWorker {
 };
 
 NAN_METHOD(FindAll) {
-  NanScope();
+  Nan::HandleScope scope;
 
   int vid = 0;
   int pid = 0;
-  NanCallback *callback;
+  Nan::Callback *callback;
 
-  if (args.Length() != 3)
+  if (info.Length() != 3)
   {
-    return NanThrowError("Wrong number of arguments");
+    return Nan::ThrowError("Wrong number of arguments");
   }
-  if (args[0]->IsNumber() && args[1]->IsNumber())
+  if (info[0]->IsNumber() && info[1]->IsNumber())
   {
-    vid = (int) args[0]->NumberValue();
-    pid = (int) args[1]->NumberValue();
+    vid = (int) info[0]->NumberValue();
+    pid = (int) info[1]->NumberValue();
   }
 
   // callback
-  if(!args[2]->IsFunction())
+  if(!info[2]->IsFunction())
   {
-    return NanThrowError("Third argument must be a function");
+    return Nan::ThrowError("Third argument must be a function");
   }
 
-  callback = new NanCallback(args[2].As<v8::Function>());
+  callback = new Nan::Callback(info[2].As<v8::Function>());
 
-  NanAsyncQueueWorker(new FindAllWorker(callback, vid, pid));
-  NanReturnUndefined();
+  Nan::AsyncQueueWorker(new FindAllWorker(callback, vid, pid));
+  return;
 }
 
 void InitializeList(Handle<Object> target)
 {
-  Local<FunctionTemplate> tpl = NanNew<FunctionTemplate>();
-  tpl->SetClassName(NanNew<String>(JS_CLASS_NAME));
+  Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>();
+  tpl->SetClassName(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked());
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
   tpl->Set(
-      NanNew<String>("findAll")
-    , NanNew<FunctionTemplate>(FindAll)->GetFunction()
+      Nan::New<String>("findAll").ToLocalChecked()
+    , Nan::New<FunctionTemplate>(FindAll)->GetFunction()
   );
 
-  target->Set(NanNew<String>(JS_CLASS_NAME), tpl->GetFunction());
+  target->Set(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked(), tpl->GetFunction());
 
   uv_mutex_init(&vidPidMutex);
 }

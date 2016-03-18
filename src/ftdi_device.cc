@@ -74,21 +74,21 @@ FtdiDevice::~FtdiDevice()
 };
 
 NAN_METHOD(FtdiDevice::New) {
-  NanScope();
+  Nan::HandleScope scope;
 
-  Local<String> locationId    = NanNew<String>(DEVICE_LOCATION_ID_TAG);
-  Local<String> serial        = NanNew<String>(DEVICE_SERIAL_NR_TAG);
-  Local<String> index         = NanNew<String>(DEVICE_INDEX_TAG);
-  Local<String> description   = NanNew<String>(DEVICE_DESCRIPTION_TAG);
-  Local<String> vid           = NanNew<String>(DEVICE_VENDOR_ID_TAG);
-  Local<String> pid           = NanNew<String>(DEVICE_PRODUCT_ID_TAG);
+  Local<String> locationId    = Nan::New<String>(DEVICE_LOCATION_ID_TAG).ToLocalChecked();
+  Local<String> serial        = Nan::New<String>(DEVICE_SERIAL_NR_TAG).ToLocalChecked();
+  Local<String> index         = Nan::New<String>(DEVICE_INDEX_TAG).ToLocalChecked();
+  Local<String> description   = Nan::New<String>(DEVICE_DESCRIPTION_TAG).ToLocalChecked();
+  Local<String> vid           = Nan::New<String>(DEVICE_VENDOR_ID_TAG).ToLocalChecked();
+  Local<String> pid           = Nan::New<String>(DEVICE_PRODUCT_ID_TAG).ToLocalChecked();
 
   FtdiDevice* object = new FtdiDevice();
 
   // Check if the argument is an object
-  if(args[0]->IsObject())
+  if(info[0]->IsObject())
   {
-    Local<Object> obj = args[0]->ToObject();
+    Local<Object> obj = info[0]->ToObject();
 
     /**
      * Determine how to connect to the device, we have the following possibilities:
@@ -130,28 +130,28 @@ NAN_METHOD(FtdiDevice::New) {
     }
   }
   // if the argument is a number we connect by index to the device
-  else if(args[0]->IsNumber())
+  else if(info[0]->IsNumber())
   {
-    object->connectParams.connectId = (int) args[0]->NumberValue();
+    object->connectParams.connectId = (int) info[0]->NumberValue();
     object->connectParams.connectType = ConnectType_ByIndex;
   }
   else
   {
-    return NanThrowTypeError("new expects a object as argument");
+    return Nan::ThrowTypeError("new expects a object as argument");
   }
 
-  object->Wrap(args.This());
+  object->Wrap(info.This());
 
-  NanReturnValue(args.This());
+  info.GetReturnValue().Set(info.This());
 }
 
 /*****************************
  * READ Section
  *****************************/
-class ReadWorker : public NanAsyncWorker {
+class ReadWorker : public Nan::AsyncWorker {
  public:
-  ReadWorker(NanCallback *callback, FtdiDevice* device)
-    : NanAsyncWorker(callback), device(device) {}
+  ReadWorker(Nan::Callback *callback, FtdiDevice* device)
+    : Nan::AsyncWorker(callback), device(device) {}
   ~ReadWorker() {}
 
   // Executed inside the worker-thread.
@@ -164,7 +164,7 @@ class ReadWorker : public NanAsyncWorker {
   }
 
   void WorkComplete () {
-    NanScope();
+    Nan::HandleScope scope;
 
     if (ErrorMessage() == NULL)
       HandleOKCallback();
@@ -176,27 +176,27 @@ class ReadWorker : public NanAsyncWorker {
   // this function will be run inside the main event loop
   // so it is safe to use V8 again
   void HandleOKCallback () {
-    NanScope();
+    Nan::HandleScope scope;
 
     // Execute the callback in case we have one and we have read some data
     if(status != FT_OK || (baton->length != 0))
     {
       Local<Value> argv[2];
 
-      Local<Object> slowBuffer = NanNewBufferHandle((char*)baton->data, baton->length);
-      Local<Object> globalObj = NanGetCurrentContext()->Global();
-      Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(NanNew<String>("Buffer")));
-      Handle<Value> constructorArgs[3] = { slowBuffer, NanNew<Integer>(baton->length), NanNew<Integer>(0) };
+      Local<Object> slowBuffer = Nan::CopyBuffer((char*)baton->data, baton->length).ToLocalChecked();
+      Local<Object> globalObj = Nan::GetCurrentContext()->Global();
+      Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(Nan::New<String>("Buffer").ToLocalChecked()));
+      Handle<Value> constructorArgs[3] = { slowBuffer, Nan::New<Integer>(baton->length), Nan::New<Integer>(0) };
       Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
       argv[1] = actualBuffer;
 
       if(status != FT_OK)
       {
-        argv[0] = NanNew<String>(GetStatusString(status));
+        argv[0] = Nan::New<String>(GetStatusString(status)).ToLocalChecked();
       }
       else
       {
-        argv[0] = Local<Value>(NanUndefined());
+        argv[0] = Local<Value>(Nan::Undefined());
       }
 
       callback->Call(2, argv);
@@ -284,10 +284,10 @@ FT_STATUS FtdiDevice::ReadDataAsync(FtdiDevice* device, ReadBaton_t* baton)
 /*****************************
  * OPEN Section
  *****************************/
-class OpenWorker : public NanAsyncWorker {
+class OpenWorker : public Nan::AsyncWorker {
  public:
-  OpenWorker(NanCallback *callback, FtdiDevice* device, NanCallback *callback_read)
-    : NanAsyncWorker(callback), device(device), callback_read(callback_read) {}
+  OpenWorker(Nan::Callback *callback, FtdiDevice* device, Nan::Callback *callback_read)
+    : Nan::AsyncWorker(callback), device(device), callback_read(callback_read) {}
   ~OpenWorker() {}
 
   // Executed inside the worker-thread.
@@ -302,7 +302,7 @@ class OpenWorker : public NanAsyncWorker {
   // this function will be run inside the main event loop
   // so it is safe to use V8 again
   void HandleOKCallback () {
-    NanScope();
+    Nan::HandleScope scope;
 
     /**
      * If the open process was sucessful, we start the read thread
@@ -331,11 +331,11 @@ class OpenWorker : public NanAsyncWorker {
       Local<Value> argv[1];
       if(status != FT_OK)
       {
-        argv[0] = NanNew<String>(GetStatusString(status));
+        argv[0] = Nan::New<String>(GetStatusString(status)).ToLocalChecked();
       }
       else
       {
-        argv[0] = Local<Value>(NanUndefined());
+        argv[0] = Local<Value>(Nan::Undefined());
       }
 
       callback->Call(1, argv);
@@ -345,53 +345,53 @@ class OpenWorker : public NanAsyncWorker {
  private:
   FT_STATUS status;
   FtdiDevice* device;
-  NanCallback *callback_read;
+  Nan::Callback *callback_read;
 };
 
 NAN_METHOD(FtdiDevice::Open) {
-  NanScope();
+  Nan::HandleScope scope;
 
-  NanCallback *callback = NULL;
-  NanCallback *callback_read = NULL;
+  Nan::Callback *callback = NULL;
+  Nan::Callback *callback_read = NULL;
 
   // Get Device Object
-  FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
+  FtdiDevice* device = Nan::ObjectWrap::Unwrap<FtdiDevice>(info.This());
   if(device == NULL)
   {
-    return NanThrowError("No FtdiDevice object found in Java Script object");
+    return Nan::ThrowError("No FtdiDevice object found in Java Script object");
   }
 
-  if (args.Length() != 3)
+  if (info.Length() != 3)
   {
-    return NanThrowError("open() expects three arguments");
+    return Nan::ThrowError("open() expects three arguments");
   }
 
-  if (!args[0]->IsObject())
+  if (!info[0]->IsObject())
   {
-    return NanThrowError("open() expects a object as first argument");
+    return Nan::ThrowError("open() expects a object as first argument");
   }
-
-  // options
-  if(!args[1]->IsFunction())
-  {
-    return NanThrowError("open() expects a function (openFisnished) as second argument");
-  }
-  Local<Value> readCallback = args[1];
 
   // options
-  if(!args[2]->IsFunction())
+  if(!info[1]->IsFunction())
   {
-    return NanThrowError("open() expects a function (readFinsihed) as third argument");
+    return Nan::ThrowError("open() expects a function (openFisnished) as second argument");
   }
-  Local<Value> openCallback = args[2];
+  Local<Value> readCallback = info[1];
+
+  // options
+  if(!info[2]->IsFunction())
+  {
+    return Nan::ThrowError("open() expects a function (readFinsihed) as third argument");
+  }
+  Local<Value> openCallback = info[2];
 
 
   // Check if device is not already open or opening
   if(device->deviceState == DeviceState_Open)
   {
     Local<Value> argv[1];
-    argv[0] = NanNew<String>(FT_STATUS_CUSTOM_ALREADY_OPEN);
-    callback = new NanCallback(args[1].As<v8::Function>());
+    argv[0] = Nan::New<String>(FT_STATUS_CUSTOM_ALREADY_OPEN).ToLocalChecked();
+    callback = new Nan::Callback(info[1].As<v8::Function>());
     callback->Call(1, argv);
   }
   else
@@ -399,18 +399,18 @@ NAN_METHOD(FtdiDevice::Open) {
     device->deviceState = DeviceState_Open;
 
     // Extract the connection parameters
-    device->ExtractDeviceSettings(args[0]->ToObject());
+    device->ExtractDeviceSettings(info[0]->ToObject());
 
-    callback_read = new NanCallback(readCallback.As<v8::Function>());
-    callback = new NanCallback(openCallback.As<v8::Function>());
+    callback_read = new Nan::Callback(readCallback.As<v8::Function>());
+    callback = new Nan::Callback(openCallback.As<v8::Function>());
 
-    NanAsyncQueueWorker(new OpenWorker(callback, device, callback_read));
+    Nan::AsyncQueueWorker(new OpenWorker(callback, device, callback_read));
   }
 
-  NanReturnUndefined();
+  return;
 }
 
-FT_STATUS FtdiDevice::OpenAsync(FtdiDevice* device, NanCallback *callback_read)
+FT_STATUS FtdiDevice::OpenAsync(FtdiDevice* device, Nan::Callback *callback_read)
 {
   FT_STATUS ftStatus;
 
@@ -514,10 +514,10 @@ FT_STATUS FtdiDevice::OpenDevice()
 /*****************************
  * WRITE Section
  *****************************/
-class WriteWorker : public NanAsyncWorker {
+class WriteWorker : public Nan::AsyncWorker {
  public:
-  WriteWorker(NanCallback *callback, FtdiDevice* device, WriteBaton_t* baton)
-    : NanAsyncWorker(callback), device(device), baton(baton) {}
+  WriteWorker(Nan::Callback *callback, FtdiDevice* device, WriteBaton_t* baton)
+    : Nan::AsyncWorker(callback), device(device), baton(baton) {}
   ~WriteWorker() {}
 
   // Executed inside the worker-thread.
@@ -532,18 +532,18 @@ class WriteWorker : public NanAsyncWorker {
   // this function will be run inside the main event loop
   // so it is safe to use V8 again
   void HandleOKCallback () {
-    NanScope();
+    Nan::HandleScope scope;
 
     if(callback != NULL)
     {
       Local<Value> argv[1];
       if(status != FT_OK)
       {
-        argv[0] = NanNew<String>(GetStatusString(status));
+        argv[0] = Nan::New<String>(GetStatusString(status)).ToLocalChecked();
       }
       else
       {
-        argv[0] = Local<Value>(NanUndefined());
+        argv[0] = Local<Value>(Nan::Undefined());
       }
 
       callback->Call(1, argv);
@@ -560,30 +560,30 @@ class WriteWorker : public NanAsyncWorker {
 };
 
 NAN_METHOD(FtdiDevice::Write) {
-  NanScope();
+  Nan::HandleScope scope;
 
-  NanCallback *callback = NULL;
+  Nan::Callback *callback = NULL;
 
   // buffer
-  if(!args[0]->IsObject() || !Buffer::HasInstance(args[0]))
+  if(!info[0]->IsObject() || !Buffer::HasInstance(info[0]))
   {
-    return NanThrowError("First argument must be a buffer");
+    return Nan::ThrowError("First argument must be a buffer");
   }
-  Local<Object> buffer = NanNew(args[0]->ToObject());
+  Local<Object> buffer = info[0]->ToObject();
 
   // Obtain Device Object
-  FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
+  FtdiDevice* device = Nan::ObjectWrap::Unwrap<FtdiDevice>(info.This());
   if(device == NULL)
   {
-    return NanThrowError("No FtdiDevice object found in Java Script object");
+    return Nan::ThrowError("No FtdiDevice object found in Java Script object");
   }
 
   Local<Value> writeCallback;
   // options
-  if(args.Length() > 1 && args[1]->IsFunction())
+  if(info.Length() > 1 && info[1]->IsFunction())
   {
-    writeCallback = args[1];
-    callback = new NanCallback(writeCallback.As<v8::Function>());
+    writeCallback = info[1];
+    callback = new Nan::Callback(writeCallback.As<v8::Function>());
   }
 
   WriteBaton_t* baton = new WriteBaton_t();
@@ -591,9 +591,9 @@ NAN_METHOD(FtdiDevice::Write) {
   baton->data = new uint8_t[baton->length];
   memcpy(baton->data, Buffer::Data(buffer), baton->length);
 
-  NanAsyncQueueWorker(new WriteWorker(callback, device, baton));
+  Nan::AsyncQueueWorker(new WriteWorker(callback, device, baton));
 
-  NanReturnUndefined();
+  return;
 }
 
 FT_STATUS FtdiDevice::WriteAsync(FtdiDevice* device, WriteBaton_t* baton)
@@ -611,10 +611,10 @@ FT_STATUS FtdiDevice::WriteAsync(FtdiDevice* device, WriteBaton_t* baton)
 /*****************************
  * CLOSE Section
  *****************************/
-class CloseWorker : public NanAsyncWorker {
+class CloseWorker : public Nan::AsyncWorker {
  public:
-  CloseWorker(NanCallback *callback, FtdiDevice* device)
-    : NanAsyncWorker(callback), device(device) {}
+  CloseWorker(Nan::Callback *callback, FtdiDevice* device)
+    : Nan::AsyncWorker(callback), device(device) {}
   ~CloseWorker() {}
 
   // Executed inside the worker-thread.
@@ -629,7 +629,7 @@ class CloseWorker : public NanAsyncWorker {
   // this function will be run inside the main event loop
   // so it is safe to use V8 again
   void HandleOKCallback () {
-    NanScope();
+    Nan::HandleScope scope;
 
     device->deviceState = DeviceState_Idle;
 
@@ -638,11 +638,11 @@ class CloseWorker : public NanAsyncWorker {
       Local<Value> argv[1];
       if(status != FT_OK)
       {
-        argv[0] = NanNew<String>(GetStatusString(status));
+        argv[0] = Nan::New<String>(GetStatusString(status)).ToLocalChecked();
       }
       else
       {
-        argv[0] = Local<Value>(NanUndefined());
+        argv[0] = Local<Value>(Nan::Undefined());
       }
 
       callback->Call(1, argv);
@@ -655,26 +655,26 @@ class CloseWorker : public NanAsyncWorker {
 };
 
 NAN_METHOD(FtdiDevice::Close) {
-  NanScope();
+  Nan::HandleScope scope;
 
-  NanCallback *callback = NULL;
+  Nan::Callback *callback = NULL;
 
   // Obtain Device Object
-  FtdiDevice* device = ObjectWrap::Unwrap<FtdiDevice>(args.This());
+  FtdiDevice* device = Nan::ObjectWrap::Unwrap<FtdiDevice>(info.This());
   if(device == NULL)
   {
-    return NanThrowError("No FtdiDevice object found in Java Script object");
+    return Nan::ThrowError("No FtdiDevice object found in Java Script object");
   }
 
   // Check the device state
   if(device->deviceState != DeviceState_Open)
   {
     // callback
-    if(args[0]->IsFunction())
+    if(info[0]->IsFunction())
     {
       Local<Value> argv[1];
-      argv[0] = NanNew<String>(FT_STATUS_CUSTOM_ALREADY_CLOSING);
-      callback = new NanCallback(args[0].As<v8::Function>());
+      argv[0] = Nan::New<String>(FT_STATUS_CUSTOM_ALREADY_CLOSING).ToLocalChecked();
+      callback = new Nan::Callback(info[0].As<v8::Function>());
       callback->Call(1, argv);
     }
   }
@@ -684,15 +684,15 @@ NAN_METHOD(FtdiDevice::Close) {
     device->deviceState = DeviceState_Closing;
 
      // callback
-    if(args[0]->IsFunction())
+    if(info[0]->IsFunction())
     {
-      callback = new NanCallback(args[0].As<v8::Function>());
+      callback = new Nan::Callback(info[0].As<v8::Function>());
     }
 
-    NanAsyncQueueWorker(new CloseWorker(callback, device));
+    Nan::AsyncQueueWorker(new CloseWorker(callback, device));
   }
 
-  NanReturnUndefined();
+  return;
 }
 
 FT_STATUS FtdiDevice::CloseAsync(FtdiDevice* device)
@@ -757,13 +757,13 @@ FT_STATUS FtdiDevice::SetDeviceSettings()
 
 void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
 {
-  NanEscapableScope();
-  Local<String> baudrate  = NanNew<String>(CONNECTION_BAUDRATE_TAG);
-  Local<String> databits  = NanNew<String>(CONNECTION_DATABITS_TAG);
-  Local<String> stopbits  = NanNew<String>(CONNECTION_STOPBITS_TAG);
-  Local<String> parity    = NanNew<String>(CONNECTION_PARITY_TAG);
-  Local<String> bitmode   = NanNew<String>(CONNECTION_BITMODE);
-  Local<String> bitmask   = NanNew<String>(CONNECTION_BITMASK);
+  Nan::EscapableHandleScope scope;
+  Local<String> baudrate  = Nan::New<String>(CONNECTION_BAUDRATE_TAG).ToLocalChecked();
+  Local<String> databits  = Nan::New<String>(CONNECTION_DATABITS_TAG).ToLocalChecked();
+  Local<String> stopbits  = Nan::New<String>(CONNECTION_STOPBITS_TAG).ToLocalChecked();
+  Local<String> parity    = Nan::New<String>(CONNECTION_PARITY_TAG).ToLocalChecked();
+  Local<String> bitmode   = Nan::New<String>(CONNECTION_BITMODE).ToLocalChecked();
+  Local<String> bitmask   = Nan::New<String>(CONNECTION_BITMASK).ToLocalChecked();
 
   if(options->Has(baudrate))
   {
@@ -947,16 +947,16 @@ void FtdiDevice::SignalCloseEvent()
 void FtdiDevice::Initialize(v8::Handle<v8::Object> target)
 {
   // Prepare constructor template
-  Local<FunctionTemplate> tpl = NanNew<FunctionTemplate>(New);
-  tpl->SetClassName(NanNew<String>(JS_CLASS_NAME));
+  Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(New);
+  tpl->SetClassName(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked());
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
   // Prototype
-  tpl->PrototypeTemplate()->Set(NanNew<String>(JS_WRITE_FUNCTION), NanNew<FunctionTemplate>(Write)->GetFunction());
-  tpl->PrototypeTemplate()->Set(NanNew<String>(JS_OPEN_FUNCTION), NanNew<FunctionTemplate>(Open)->GetFunction());
-  tpl->PrototypeTemplate()->Set(NanNew<String>(JS_CLOSE_FUNCTION), NanNew<FunctionTemplate>(Close)->GetFunction());
+  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_WRITE_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Write)->GetFunction());
+  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_OPEN_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Open)->GetFunction());
+  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_CLOSE_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Close)->GetFunction());
 
   Local<Function> constructor = tpl->GetFunction();
-  target->Set(NanNew<String>(JS_CLASS_NAME), constructor);
+  target->Set(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked(), constructor);
 }
 
 extern "C"

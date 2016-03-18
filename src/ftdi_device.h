@@ -67,7 +67,7 @@ typedef enum
   DeviceState_Closing
 } DeviceState_t;
 
-class FtdiDevice : public ObjectWrap
+class FtdiDevice : public Nan::ObjectWrap
 {
   public:
     static void Initialize(Handle<Object> target);
@@ -80,7 +80,7 @@ class FtdiDevice : public ObjectWrap
     static NAN_METHOD(Write);
     static NAN_METHOD(Close);
 
-    static FT_STATUS OpenAsync(FtdiDevice* device, NanCallback *callback_read);
+    static FT_STATUS OpenAsync(FtdiDevice* device, Nan::Callback *callback_read);
     static FT_STATUS ReadDataAsync(FtdiDevice* device, ReadBaton_t* baton);
     static FT_STATUS WriteAsync(FtdiDevice* device, WriteBaton_t* baton);
     static FT_STATUS CloseAsync(FtdiDevice* device);
@@ -110,15 +110,15 @@ class FtdiDevice : public ObjectWrap
 }
 
 inline void AsyncExecuteCompletePersistent (uv_work_t* req) {
-  NanAsyncWorker* worker = static_cast<NanAsyncWorker*>(req->data);
+  Nan::AsyncWorker* worker = static_cast<Nan::AsyncWorker*>(req->data);
   worker->WorkComplete();
 }
 
-inline void AsyncQueueWorkerPersistent (NanAsyncWorker* worker) {
+inline void AsyncQueueWorkerPersistent (Nan::AsyncWorker* worker) {
   uv_queue_work(
       uv_default_loop()
     , &worker->request
-    , NanAsyncExecute
+    , Nan::AsyncExecute
     , (uv_after_work_cb)AsyncExecuteCompletePersistent
   );
 }

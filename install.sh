@@ -56,7 +56,7 @@ then
    	buildPath="tmp/release/build/x86_64/"
    elif [ "$platform" == 'RPi' ]
    then
-      	buildPath="tmp/release/build/arm926/"	
+      	buildPath="tmp/release/build/arm926/"
    else
       	buildPath="tmp/release/build/i386/"
    fi
@@ -82,4 +82,5 @@ then
    cp /Volumes/release/D2XX/Samples/WinTypes.h /usr/local/include/WinTypes.h
    rm $filename
    hdiutil detach /Volumes/release
+   xcode-select -v
 fi

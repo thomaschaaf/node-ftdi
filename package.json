@@ -1,6 +1,6 @@
 {
   "name": "ftdi",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "FTDI bindings for Node.js",
   "main": "index.js",
   "dependencies": {
@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/KABA-CCEAC/node-ftdi.git"
+    "url": "git://github.com/thomaschaaf/node-ftdi.git"
   },
   "keywords": [
     "ftdi",
@@ -22,12 +22,9 @@
     "driver",
     "device"
   ],
-  "homepage": "https://github.com/KABA-CCEAC/node-ftdi",
+  "homepage": "https://github.com/thomaschaaf/node-ftdi",
   "bugs": {
-    "url": "https://github.com/KABA-CCEAC/node-ftdi/issues"
+    "url": "https://github.com/thomaschaaf/node-ftdi/issues"
   },
-  "license": {
-    "type": "MIT",
-    "url": "https://raw.github.com/KABA-CCEAC/node-ftdi/master/licence"
-  }
+  "license": "MIT"
 }

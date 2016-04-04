@@ -35,6 +35,8 @@ Ensure you have Visual Studio 2010 installed. If you have any version OTHER THAN
 
 Ensure that you have at a minimum the xCode Command Line Tools installed appropriate for your system configuration. If you recently upgrade OS, it probably removed your installation of Command Line Tools, please verify before submitting a ticket.
 
+Verify that it is installed by running ```xcode-select --install```
+
 ### Linux:
 
 You know what you need for you system, basically your appropriate analog of build-essential. Keep rocking!
@@ -130,6 +132,10 @@ var bitmodes = {
 ```
 
 # Release Notes
+
+## v1.2.0
+
+- Add support for node v4, v5
 
 ## v1.1.0
 

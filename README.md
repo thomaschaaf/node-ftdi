@@ -1,15 +1,15 @@
 <pre>
-  eeeee eeeee eeeee eeee       e  eeeee 
-  8   8 8  88 8   8 8          8  8   " 
-  8e  8 8   8 8e  8 8eee       8e 8eeee 
-  88  8 8   8 88  8 88      e  88    88 
+  eeeee eeeee eeeee eeee       e  eeeee
+  8   8 8  88 8   8 8          8  8   "
+  8e  8 8   8 8e  8 8eee       8e 8eeee
+  88  8 8   8 88  8 88      e  88    88
   88  8 8eee8 88ee8 88ee 88 8ee88 8ee88
 
-  eeee eeeee eeeee e  
-  8      8   8   8 8  
-  8eee   8e  8e  8 8e 
-  88     88  88  8 88 
-  88     88  88ee8 88 
+  eeee eeeee eeeee e
+  8      8   8   8 8
+  8eee   8e  8e  8 8e
+  88     88  88  8 88
+  88     88  88ee8 88
 </pre>
 
 [![npm](https://img.shields.io/npm/v/ftdi.svg)](https://npmjs.org/package/ftdi)
@@ -29,7 +29,7 @@ This assumes you have everything on your system necessary to compile ANY native 
 
 ### Windows:
 
-Ensure you have Visual Studio 2010 installed. If you have any version OTHER THAN VS 2010, please read this: https://github.com/TooTallNate/node-gyp/issues/44 
+Ensure you have Visual Studio 2010 installed. If you have any version OTHER THAN VS 2010, please read this: https://github.com/TooTallNate/node-gyp/issues/44
 
 ### Mac OS X:
 
@@ -70,7 +70,7 @@ var device = new ftdi.FtdiDevice(0);  // index in list function
 var ftdi = require('ftdi');
 
 ftdi.find(0x27f4, 0x0203, function(err, devices) {
-  var device = new ftdi.FtdiDevice(0);
+  var device = new ftdi.FtdiDevice(devices[0]);
 
   device.on('error', function(err) {
   });
@@ -124,7 +124,7 @@ var bitmodes = {
  * 0x04 = Synchronous Bit Bang (FT232R, FT245R, FT2232, FT2232H, FT4232H and FT232H devices only)
  * 0x08 = MCU Host Bus Emulation Mode (FT2232, FT2232H, FT4232H and FT232H devices only)
  * 0x10 = Fast Opto-Isolated Serial Mode (FT2232, FT2232H, FT4232H and FT232H devices only)
- * 0x20 = CBUS Bit Bang Mode (FT232R and FT232H devices only) 
+ * 0x20 = CBUS Bit Bang Mode (FT232R and FT232H devices only)
  * 0x40 = Single Channel Synchronous 245 FIFO Mode (FT2232H and FT232H devices only)
  */
 ```

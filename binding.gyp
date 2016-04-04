@@ -2,30 +2,31 @@
   'targets': [
     {
       'target_name': 'ftdi',
-      'sources': 
+      'sources':
       [
         'src/ftdi_device.cc',
 	      'src/ftdi_driver.cc'
       ],
-      'include_dirs+': 
+      'include_dirs+':
       [
         'src/',
+         "<!(node -e \"require('nan')\")"
       ],
-      'conditions': 
+      'conditions':
       [
         ['OS == "win"',
           {
-            'include_dirs+': 
+            'include_dirs+':
             [
               'lib/'
             ],
-            'link_settings': 
+            'link_settings':
             {
-              "conditions" : 
+              "conditions" :
               [
-                ["target_arch=='ia32'", 
+                ["target_arch=='ia32'",
                 {
-                  'libraries': 
+                  'libraries':
                   [
                    '-l<(module_root_dir)/lib/i386/ftd2xx.lib'
                   ]
@@ -42,6 +43,7 @@
         ['OS != "win"',
           {
             'include_dirs+': [
+              '/usr/local/include',
               '/usr/local/include/libftd2xx/'
             ],
             'ldflags': [
@@ -54,7 +56,7 @@
             }
           }
         ]
-      ],          
+      ],
     }
   ]
 }

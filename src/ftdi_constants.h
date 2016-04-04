@@ -71,7 +71,7 @@ static const char * error_strings[] = {
 
 inline const char* GetStatusString(int status)
 {
- 	return error_strings[status];   
+ 	return error_strings[status];
 }
 
 #endif

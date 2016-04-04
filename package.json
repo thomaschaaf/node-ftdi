@@ -4,12 +4,13 @@
   "description": "FTDI bindings for Node.js",
   "main": "index.js",
   "dependencies": {
-    "bindings": "1.1.0"
+    "bindings": "^1.2.1",
+    "nan": "^2.2.0"
   },
   "gypfile": true,
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "preinstall": "node-gyp rebuild"
+    "postinstall": "node-gyp rebuild"
   },
   "repository": {
     "type": "git",

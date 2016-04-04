@@ -11,7 +11,7 @@ var util = require('util'),
  * 0x04 = Synchronous Bit Bang (FT232R, FT245R, FT2232, FT2232H, FT4232H and FT232H devices only)
  * 0x08 = MCU Host Bus Emulation Mode (FT2232, FT2232H, FT4232H and FT232H devices only)
  * 0x10 = Fast Opto-Isolated Serial Mode (FT2232, FT2232H, FT4232H and FT232H devices only)
- * 0x20 = CBUS Bit Bang Mode (FT232R and FT232H devices only) 
+ * 0x20 = CBUS Bit Bang Mode (FT232R and FT232H devices only)
  * 0x40 = Single Channel Synchronous 245 FIFO Mode (FT2232H and FT232H devices only)
  */
 var bitmodes = {
@@ -54,7 +54,7 @@ util.inherits(FtdiDevice, EventEmitter);
 FtdiDevice.prototype.open = function(settings, callback) {
   var self = this;
 
-  if (typeof(settings.bitmode) === 'sting') {
+  if (typeof(settings.bitmode) === 'string') {
     settings.bitmode = bitmodes[settings.bitmode];
   }
 

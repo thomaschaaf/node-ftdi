@@ -131,6 +131,21 @@ var bitmodes = {
  */
 ```
 
+# Troubleshoot
+
+### Windows
+
+### Mac OS X
+
+Error message:
+Can't open ftdi device: FT_DEVICE_NOT_OPENED
+
+Try to unload the Apple FTDI Driver by running the following command:
+
+```sudo kextunload -b com.apple.driver.AppleUSBFTDI```
+
+### Linux
+
 # Release Notes
 
 ## v1.2.0

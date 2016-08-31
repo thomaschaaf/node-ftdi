@@ -55,6 +55,8 @@ kernel & user mode
 #define FTD2XX_API __declspec(dllimport)
 #endif
 
+#define WIN32_LEAN_AND_MEAN // to exlude some unnecessary windows headers (see windows.h)
+#include <Windows.h>
 
 typedef PVOID	FT_HANDLE;
 typedef ULONG	FT_STATUS;

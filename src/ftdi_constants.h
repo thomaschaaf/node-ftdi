@@ -43,6 +43,16 @@
 #define FT_STATUS_CUSTOM_ALREADY_OPEN				"Device Already open"
 #define FT_STATUS_CUSTOM_ALREADY_CLOSING			"Device Already closing"
 
+#define FT_MODEM_CTS 0x10
+#define FT_MODEM_DSR 0x20
+#define FT_MODEM_RI  0x40
+#define FT_MODEM_DCD 0x80
+
+#define FT_LINE_OE 0x02
+#define FT_LINE_PE 0x04
+#define FT_LINE_FE 0x08
+#define FT_LINE_BI 0x10
+
 // Lock for Library Calls
 extern uv_mutex_t libraryMutex;
 extern uv_mutex_t vidPidMutex;

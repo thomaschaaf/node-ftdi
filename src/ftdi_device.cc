@@ -37,6 +37,7 @@ using namespace ftdi_device;
 #define JS_CLASS_NAME               "FtdiDevice"
 #define JS_WRITE_FUNCTION           "write"
 #define JS_OPEN_FUNCTION            "open"
+#define JS_MODEM_STATUS_FUNCTION    "modemStatus"
 #define JS_CLOSE_FUNCTION           "close"
 
 
@@ -46,6 +47,8 @@ using namespace ftdi_device;
 UCHAR GetWordLength(int wordLength);
 UCHAR GetStopBits(int stopBits);
 UCHAR GetParity(const char* string);
+
+bool checkFlag(DWORD val, int mask);
 
 void ToCString(Local<String> val, char ** ptr);
 
@@ -280,14 +283,146 @@ FT_STATUS FtdiDevice::ReadDataAsync(FtdiDevice* device, ReadBaton_t* baton)
   }
 }
 
+/*****************************
+ * MODEM Section
+ *****************************/
+class ModemStatusWorker : public Nan::AsyncWorker {
+ public:
+  ModemStatusWorker(Nan::Callback *callback, FtdiDevice* device, bool callbackLoop)
+    : Nan::AsyncWorker(callback), device(device), callbackLoop(callbackLoop), lastStatus(0) {}
+  ~ModemStatusWorker() {}
+
+  // Executed inside the worker-thread.
+  // It is not safe to access V8, or V8 data structures
+  // here, so everything we need for input and output
+  // should go on `this`.
+  void Execute () {
+    baton = new ModemBaton_t();
+    baton->status = (DWORD)0;
+    status = FtdiDevice::ModemStatusAsync(device, baton);
+  }
+
+  void WorkComplete () {
+    Nan::HandleScope scope;
+
+    if (ErrorMessage() == NULL)
+    {
+      HandleOKCallback();
+    }
+    else
+    {  
+      HandleErrorCallback();
+    }
+  }
+
+  // Executed when the async work is complete
+  // this function will be run inside the main event loop
+  // so it is safe to use V8 again
+  void HandleOKCallback () {
+    Nan::HandleScope scope;
+
+    // If we're in a callback loop, only call callback if the status is different
+    if(callback != NULL && (callbackLoop == false || lastStatus != baton->status))
+    {
+      Local<Value> argv[2];
+      if(status != FT_OK)
+      {
+        argv[0] = Nan::New<String>(GetStatusString(status)).ToLocalChecked();
+        argv[1] = Local<Value>(Nan::New<Integer>(0));
+      }
+      else
+      {
+        argv[0] = Local<Value>(Nan::Undefined());
+
+        // Create return object
+        v8::Local<v8::Object> resultObj = Nan::New<v8::Object>();
+        resultObj->Set(
+          Nan::New<String>("raw").ToLocalChecked(), 
+          Nan::New<Uint32>(baton->status));
+
+        DWORD modemStatus = (baton->status & 0x000000FF);
+        resultObj->Set(
+          Nan::New<String>("cts").ToLocalChecked(), 
+          Nan::New<Boolean>(checkFlag(modemStatus, FT_MODEM_CTS)));
+        resultObj->Set(
+          Nan::New<String>("dsr").ToLocalChecked(), 
+          Nan::New<Boolean>(checkFlag(modemStatus, FT_MODEM_DSR)));
+        resultObj->Set(
+          Nan::New<String>("ri").ToLocalChecked(), 
+          Nan::New<Boolean>(checkFlag(modemStatus, FT_MODEM_RI)));
+        resultObj->Set(
+          Nan::New<String>("dcd").ToLocalChecked(), 
+          Nan::New<Boolean>(checkFlag(modemStatus, FT_MODEM_DCD)));
+
+        DWORD lineStatus = ((baton->status >> 8) & 0x000000FF); 
+        resultObj->Set(
+          Nan::New<String>("oe").ToLocalChecked(), 
+          Nan::New<Boolean>(checkFlag(lineStatus, FT_LINE_OE)));
+        resultObj->Set(
+          Nan::New<String>("pe").ToLocalChecked(), 
+          Nan::New<Boolean>(checkFlag(lineStatus, FT_LINE_PE)));
+        resultObj->Set(
+          Nan::New<String>("fe").ToLocalChecked(), 
+          Nan::New<Boolean>(checkFlag(lineStatus, FT_LINE_FE)));
+        resultObj->Set(
+          Nan::New<String>("bi").ToLocalChecked(), 
+          Nan::New<Boolean>(checkFlag(lineStatus, FT_LINE_BI)));
+
+        argv[1] = resultObj;
+      }
+
+      callback->Call(2, argv);
+    }
+    lastStatus = baton->status;
+
+    if (callbackLoop) {
+      AsyncQueueWorkerPersistent(this);
+    }
+  };
+
+ private:
+  FT_STATUS status;
+  FtdiDevice* device;
+  ModemBaton_t* baton;
+  bool callbackLoop;
+  DWORD lastStatus;
+};
+
+NAN_METHOD(FtdiDevice::ModemStatus) {
+  Nan::HandleScope scope;
+
+  Nan::Callback *callback = NULL;
+
+  // Obtain Device Object
+  FtdiDevice* device = Nan::ObjectWrap::Unwrap<FtdiDevice>(info.This());
+  if(device == NULL)
+  {
+    return Nan::ThrowError("No FtdiDevice object found in Java Script object");
+  }
+
+  // callback
+  if(info[0]->IsFunction())
+  {
+    callback = new Nan::Callback(info[0].As<v8::Function>());
+  }
+
+  Nan::AsyncQueueWorker(new ModemStatusWorker(callback, device, false));
+  return;
+}
+
+FT_STATUS FtdiDevice::ModemStatusAsync(FtdiDevice* device, ModemBaton_t* baton)
+{
+  FT_STATUS ftStatus = FT_GetModemStatus(device->ftHandle, &baton->status); 
+  return ftStatus;
+}
 
 /*****************************
  * OPEN Section
  *****************************/
 class OpenWorker : public Nan::AsyncWorker {
  public:
-  OpenWorker(Nan::Callback *callback, FtdiDevice* device, Nan::Callback *callback_read)
-    : Nan::AsyncWorker(callback), device(device), callback_read(callback_read) {}
+  OpenWorker(Nan::Callback *callback, FtdiDevice* device, Nan::Callback *callback_read, Nan::Callback *callback_modem)
+    : Nan::AsyncWorker(callback), device(device), callback_read(callback_read), callback_modem(callback_modem) {}
   ~OpenWorker() {}
 
   // Executed inside the worker-thread.
@@ -295,7 +430,7 @@ class OpenWorker : public Nan::AsyncWorker {
   // here, so everything we need for input and output
   // should go on `this`.
   void Execute () {
-    status = FtdiDevice::OpenAsync(device, callback_read);
+    status = FtdiDevice::OpenAsync(device, callback_read, callback_modem);
   }
 
   // Executed when the async work is complete
@@ -317,6 +452,7 @@ class OpenWorker : public Nan::AsyncWorker {
         uv_mutex_lock(&device->closeMutex);
 
         AsyncQueueWorkerPersistent(new ReadWorker(callback_read, device));
+        AsyncQueueWorkerPersistent(new ModemStatusWorker(callback_modem, device, true));
       }
       // In case read thread could not be started, dispose the callback
       else
@@ -346,6 +482,7 @@ class OpenWorker : public Nan::AsyncWorker {
   FT_STATUS status;
   FtdiDevice* device;
   Nan::Callback *callback_read;
+  Nan::Callback *callback_modem;
 };
 
 NAN_METHOD(FtdiDevice::Open) {
@@ -353,6 +490,7 @@ NAN_METHOD(FtdiDevice::Open) {
 
   Nan::Callback *callback = NULL;
   Nan::Callback *callback_read = NULL;
+  Nan::Callback *callback_modem = NULL;
 
   // Get Device Object
   FtdiDevice* device = Nan::ObjectWrap::Unwrap<FtdiDevice>(info.This());
@@ -361,7 +499,7 @@ NAN_METHOD(FtdiDevice::Open) {
     return Nan::ThrowError("No FtdiDevice object found in Java Script object");
   }
 
-  if (info.Length() != 3)
+  if (info.Length() != 4)
   {
     return Nan::ThrowError("open() expects three arguments");
   }
@@ -374,16 +512,21 @@ NAN_METHOD(FtdiDevice::Open) {
   // options
   if(!info[1]->IsFunction())
   {
-    return Nan::ThrowError("open() expects a function (openFisnished) as second argument");
+    return Nan::ThrowError("open() expects a function (readFisnished) as second argument");
   }
   Local<Value> readCallback = info[1];
 
-  // options
   if(!info[2]->IsFunction())
   {
-    return Nan::ThrowError("open() expects a function (readFinsihed) as third argument");
+    return Nan::ThrowError("open() expects a function (openFinsihed) as third argument");
   }
   Local<Value> openCallback = info[2];
+
+  if(!info[3]->IsFunction())
+  {
+    return Nan::ThrowError("open() expects a function (modemChange) as second argument");
+  }
+  Local<Value> modemCallback = info[3];
 
 
   // Check if device is not already open or opening
@@ -402,15 +545,16 @@ NAN_METHOD(FtdiDevice::Open) {
     device->ExtractDeviceSettings(info[0]->ToObject());
 
     callback_read = new Nan::Callback(readCallback.As<v8::Function>());
+    callback_modem = new Nan::Callback(modemCallback.As<v8::Function>());
     callback = new Nan::Callback(openCallback.As<v8::Function>());
 
-    Nan::AsyncQueueWorker(new OpenWorker(callback, device, callback_read));
+    Nan::AsyncQueueWorker(new OpenWorker(callback, device, callback_read, callback_modem));
   }
 
   return;
 }
 
-FT_STATUS FtdiDevice::OpenAsync(FtdiDevice* device, Nan::Callback *callback_read)
+FT_STATUS FtdiDevice::OpenAsync(FtdiDevice* device, Nan::Callback *callback_read, Nan::Callback *callback_modem)
 {
   FT_STATUS ftStatus;
 
@@ -849,6 +993,14 @@ UCHAR GetParity(const char* string)
 }
 
 /**
+ * Return a boolean true if the bit flag exists in the DWORD
+ */
+bool checkFlag(DWORD val, int mask) 
+{
+  return (val & mask) != 0;
+}
+
+/**
  *  Generates a new C String. It allocates memory for the new
  *  string. Be sure to free the memory as soon as you dont need
  *  it anymore.
@@ -953,6 +1105,7 @@ void FtdiDevice::Initialize(v8::Handle<v8::Object> target)
   // Prototype
   tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_WRITE_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Write)->GetFunction());
   tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_OPEN_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Open)->GetFunction());
+  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_MODEM_STATUS_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(ModemStatus)->GetFunction());
   tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_CLOSE_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Close)->GetFunction());
 
   Local<Function> constructor = tpl->GetFunction();

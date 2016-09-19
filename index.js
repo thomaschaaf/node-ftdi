@@ -75,6 +75,8 @@ FtdiDevice.prototype.open = function(settings, callback) {
       self.emit('open');
     }
     if (callback) { callback(err); }
+  }, function(err, modemStatus) {
+    self.emit('modemStatus', modemStatus);
   });
 };
 
@@ -119,6 +121,20 @@ FtdiDevice.prototype.close = function(callback) {
     }
     self.removeAllListeners();
     if (callback) callback(err);
+  });
+};
+
+/**
+ * Get the modem & line status flags
+ * @param  {Function} callback The function, that will be called when the flags have been retreived.
+ *                             `function(err, flags){}`
+ */
+FtdiDevice.prototype.modemStatus = function(callback) {
+  this.FTDIDevice.modemStatus(function(err, status) {
+    if (err) {
+      self.emit('error', err);
+    } 
+    if (callback) callback(err, status);
   });
 };
 

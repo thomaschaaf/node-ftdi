@@ -131,6 +131,44 @@ var bitmodes = {
  */
 ```
 
+## Modem / Line status flags
+
+To manually get the modem and line status values:
+
+```nodejs
+device.modemStatus(function(err, status) {
+  console.log(status);
+}); 
+```
+
+Or, to be notified anytime the change on an openned device:
+
+```nodejs
+device.on('modemStatus', function(status) { 
+  console.log(status)
+});
+``` 
+
+An example of the status object returned:
+
+```js
+{
+  raw: 176,   // the raw value received from the FTDI library
+
+  // Modem status
+  cts: true,  // Clear To Send
+  dsr: true,  // Data Set Ready
+  ri:  false, // Ring Indicator
+  dcd: true,  // Data Carrier Detect
+
+  // Line status
+  oe:  false, // Overrun Error
+  pe:  false, // Parity Error
+  fe:  false, // Framing Error
+  bi:  false  // Break Interrupt
+}
+```
+
 # Troubleshoot
 
 ### Windows

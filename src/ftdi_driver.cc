@@ -236,7 +236,7 @@ void InitializeList(Handle<Object> target)
 
   tpl->Set(
       Nan::New<String>("findAll").ToLocalChecked()
-    , Nan::New<FunctionTemplate>(FindAll)->GetFunction()
+    , Nan::New<FunctionTemplate>(FindAll)
   );
 
   target->Set(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked(), tpl->GetFunction());

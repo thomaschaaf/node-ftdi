@@ -951,9 +951,9 @@ void FtdiDevice::Initialize(v8::Handle<v8::Object> target)
   tpl->SetClassName(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked());
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
   // Prototype
-  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_WRITE_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Write)->GetFunction());
-  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_OPEN_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Open)->GetFunction());
-  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_CLOSE_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Close)->GetFunction());
+  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_WRITE_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Write));
+  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_OPEN_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Open));
+  tpl->PrototypeTemplate()->Set(Nan::New<String>(JS_CLOSE_FUNCTION).ToLocalChecked(), Nan::New<FunctionTemplate>(Close));
 
   Local<Function> constructor = tpl->GetFunction();
   target->Set(Nan::New<String>(JS_CLASS_NAME).ToLocalChecked(), constructor);

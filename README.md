@@ -41,6 +41,12 @@ Verify that it is installed by running ```xcode-select --install```
 
 You know what you need for you system, basically your appropriate analog of build-essential. Keep rocking!
 
+If you the vendorId and productId are both zero you have to unload the driver before using your node app like this:
+```
+rmmod ftdi_sio
+rmmod usbserial
+```
+
 # Usage
 
 ## Listing or finding devices

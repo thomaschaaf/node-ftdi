@@ -46,6 +46,7 @@ using namespace ftdi_device;
 UCHAR GetWordLength(int wordLength);
 UCHAR GetStopBits(int stopBits);
 UCHAR GetParity(const char* string);
+USHORT GetFlowControl(const char* string);
 
 void ToCString(Local<String> val, char ** ptr);
 
@@ -740,6 +741,15 @@ FT_STATUS FtdiDevice::SetDeviceSettings()
     return ftStatus;
   }
 
+  uv_mutex_lock(&libraryMutex);
+  ftStatus = FT_SetFlowControl(ftHandle, deviceParams.fc, 0x11, 0x13);
+  uv_mutex_unlock(&libraryMutex);
+  if (ftStatus != FT_OK)
+    {
+      fprintf(stderr, "Can't set flow control: %s\n", error_strings[ftStatus]);
+      return ftStatus;
+    }
+
   if (deviceParams.hasBitSettings == true) {
     uv_mutex_lock(&libraryMutex);
     ftStatus = FT_SetBitMode(ftHandle, deviceParams.bitMask, deviceParams.bitMode);
@@ -762,6 +772,7 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
   Local<String> databits  = Nan::New<String>(CONNECTION_DATABITS_TAG).ToLocalChecked();
   Local<String> stopbits  = Nan::New<String>(CONNECTION_STOPBITS_TAG).ToLocalChecked();
   Local<String> parity    = Nan::New<String>(CONNECTION_PARITY_TAG).ToLocalChecked();
+  Local<String> flowctrl  = Nan::New<String>(CONNECTION_FC_TAG).ToLocalChecked();
   Local<String> bitmode   = Nan::New<String>(CONNECTION_BITMODE).ToLocalChecked();
   Local<String> bitmask   = Nan::New<String>(CONNECTION_BITMASK).ToLocalChecked();
 
@@ -784,6 +795,14 @@ void FtdiDevice::ExtractDeviceSettings(Local<Object> options)
     deviceParams.parity = GetParity(str);
     delete[] str;
   }
+  if(options->Has(flowctrl))
+  {
+    char* str;
+    ToCString(options->Get(flowctrl)->ToString(), &str);
+    deviceParams.fc = GetFlowControl(str);
+    delete[] str;
+  }
+
   bool hasBitSettings = false;
   deviceParams.bitMode = 0;
   deviceParams.bitMask = 0;
@@ -846,6 +865,27 @@ UCHAR GetParity(const char* string)
     return FT_PARITY_EVEN;
   }
   return FT_PARITY_NONE;
+}
+
+USHORT GetFlowControl(const char* string)
+{
+  if(strcmp(CONNECTION_FC_NONE, string) == 0)
+  {
+    return FT_FLOW_NONE;
+  }
+  else if(strcmp(CONNECTION_FC_RTS_CTS, string) == 0)
+  {
+    return FT_FLOW_RTS_CTS;
+  }
+  else if(strcmp(CONNECTION_FC_DTR_DSR, string) == 0)
+  {
+    return FT_FLOW_DTR_DSR;
+  }
+  else if(strcmp(CONNECTION_FC_XON_XOFF, string) == 0)
+  {
+    return FT_FLOW_XON_XOFF;
+  }
+  return FT_FLOW_NONE;
 }
 
 /**

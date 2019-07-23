@@ -12,6 +12,7 @@
 #define CONNECTION_DATABITS_TAG		"databits"
 #define CONNECTION_STOPBITS_TAG		"stopbits"
 #define CONNECTION_PARITY_TAG		"parity"
+#define CONNECTION_FC_TAG		"flowcontrol"
 
 #define CONNECTION_BITMODE			"bitmode"
 #define CONNECTION_BITMASK			"bitmask"
@@ -19,6 +20,11 @@
 #define CONNECTION_PARITY_NONE		"none"
 #define CONNECTION_PARITY_ODD		"odd"
 #define CONNECTION_PARITY_EVEN		"even"
+
+#define CONNECTION_FC_NONE		"none"
+#define CONNECTION_FC_RTS_CTS		"rts_cts"
+#define CONNECTION_FC_DTR_DSR		"dtr_dsr"
+#define CONNECTION_FC_XON_XOFF		"xon_xoff"
 
 #define FT_STATUS_0					"FT_OK"
 #define FT_STATUS_1					"FT_INVALID_HANDLE"

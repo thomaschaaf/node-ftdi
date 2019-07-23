@@ -55,6 +55,7 @@ typedef struct
   UCHAR wordLength;
   UCHAR stopBits;
   UCHAR parity;
+  USHORT fc;
   UCHAR bitMode;
   UCHAR bitMask;
   bool hasBitSettings;

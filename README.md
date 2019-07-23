@@ -88,6 +88,7 @@ ftdi.find(0x27f4, 0x0203, function(err, devices) {
     databits: 8,
     stopbits: 1,
     parity: 'none',
+    flowcontrol: 'none', // can be 'none', 'rts_cts', 'dtr_dsr', 'xon_xoff'
     // bitmode: 'cbus', // for bit bang
     // bitmask: 0xff    // for bit bang
   },

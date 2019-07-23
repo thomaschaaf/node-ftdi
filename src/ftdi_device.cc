@@ -186,7 +186,7 @@ class ReadWorker : public Nan::AsyncWorker {
       Local<Object> slowBuffer = Nan::CopyBuffer((char*)baton->data, baton->length).ToLocalChecked();
       Local<Object> globalObj = Nan::GetCurrentContext()->Global();
       Local<Function> bufferConstructor = Local<Function>::Cast(globalObj->Get(Nan::New<String>("Buffer").ToLocalChecked()));
-      Handle<Value> constructorArgs[3] = { slowBuffer, Nan::New<Integer>(baton->length), Nan::New<Integer>(0) };
+      Handle<Value> constructorArgs[3] = { slowBuffer, Nan::New<Number>(baton->length), Nan::New<Number>(0) };
       Local<Object> actualBuffer = bufferConstructor->NewInstance(3, constructorArgs);
       argv[1] = actualBuffer;
 

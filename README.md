@@ -154,6 +154,10 @@ Try to unload the Apple FTDI Driver by running the following command:
 
 # Release Notes
 
+## v1.2.2
+
+- Fix wrong time.h header
+
 ## v1.2.0
 
 - Add support for node v4, v5

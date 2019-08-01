@@ -1,6 +1,6 @@
 {
   "name": "ftdi",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "FTDI bindings for Node.js",
   "main": "index.js",
   "dependencies": {
@@ -22,9 +22,9 @@
     "driver",
     "device"
   ],
-  "homepage": "https://github.com/thomaschaaf/node-ftdi",
+  "homepage": "https://github.com/toyoge009/node-ftdi",
   "bugs": {
-    "url": "https://github.com/thomaschaaf/node-ftdi/issues"
+    "url": "https://github.com/toyoge009/node-ftdi/issues"
   },
   "license": "MIT"
 }

@@ -160,7 +160,9 @@ class ReadWorker : public Nan::AsyncWorker {
   // here, so everything we need for input and output
   // should go on `this`.
   void Execute () {
-    baton = new ReadBaton_t();
+    baton = &batonEntity;
+    baton->length = 0;
+    baton->data = NULL;
     status = FtdiDevice::ReadDataAsync(device, baton);
   }
 
@@ -203,7 +205,7 @@ class ReadWorker : public Nan::AsyncWorker {
       callback->Call(2, argv);
     }
 
-    if(baton->length != 0)
+    if(baton->data != NULL)
     {
       delete baton->data;
       baton->length = 0;
@@ -221,13 +223,13 @@ class ReadWorker : public Nan::AsyncWorker {
       AsyncQueueWorkerPersistent(this);
     }
 
-    delete baton;
   };
 
  private:
   FT_STATUS status;
   FtdiDevice* device;
   ReadBaton_t* baton;
+  ReadBaton_t batonEntity;
 };
 
 FT_STATUS FtdiDevice::ReadDataAsync(FtdiDevice* device, ReadBaton_t* baton)

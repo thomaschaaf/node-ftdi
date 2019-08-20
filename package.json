@@ -22,9 +22,9 @@
     "driver",
     "device"
   ],
-  "homepage": "https://github.com/toyoge009/node-ftdi",
+  "homepage": "https://github.com/thomaschaaf/node-ftdi",
   "bugs": {
-    "url": "https://github.com/toyoge009/node-ftdi/issues"
+    "url": "https://github.com/thomaschaaf/node-ftdi/issues"
   },
   "license": "MIT"
 }

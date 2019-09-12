@@ -26,6 +26,11 @@ typedef struct
   DWORD length;
 } WriteBaton_t;
 
+typedef struct
+{
+  DWORD status;
+} ModemBaton_t;
+
 typedef enum
 {
   ConnectType_ByIndex,
@@ -79,11 +84,13 @@ class FtdiDevice : public Nan::ObjectWrap
     static NAN_METHOD(New);
     static NAN_METHOD(Open);
     static NAN_METHOD(Write);
+    static NAN_METHOD(ModemStatus);
     static NAN_METHOD(Close);
 
-    static FT_STATUS OpenAsync(FtdiDevice* device, Nan::Callback *callback_read);
+    static FT_STATUS OpenAsync(FtdiDevice* device, Nan::Callback *callback_read, Nan::Callback *callback_modem);
     static FT_STATUS ReadDataAsync(FtdiDevice* device, ReadBaton_t* baton);
     static FT_STATUS WriteAsync(FtdiDevice* device, WriteBaton_t* baton);
+    static FT_STATUS ModemStatusAsync(FtdiDevice* device, ModemBaton_t* baton);
     static FT_STATUS CloseAsync(FtdiDevice* device);
 
     void ExtractDeviceSettings(Local<v8::Object> options);
